@@ -1,0 +1,27 @@
+# Data manipulation and analysis
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Machine learning
+scikit-learn>=1.3.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+
+# Geospatial analysis (for urban data)
+geopandas>=0.13.0
+shapely>=2.0.0
+
+# Jupyter for interactive development
+jupyter>=1.0.0
+ipykernel>=6.23.0
+
+# Utilities
+requests>=2.31.0
+tqdm>=4.65.0
+python-dotenv>=1.0.0
+
+# Type hints
+typing-extensions>=4.7.0
