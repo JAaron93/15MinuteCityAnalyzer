@@ -15,6 +15,7 @@
   - [ ] 1.2.3 Create `.env.example` file for Census API key (optional)
   - [ ] 1.2.4 Create `.gitignore` file to exclude venv, .env, __pycache__, .mypy_cache, data/raw/*
   - [ ] 1.2.5 Create `pyproject.toml` for Black, Ruff, and mypy configuration
+  - [ ] 1.2.6 Create `pipeline_config.yaml` with all configurable parameters: `walk_speed_kmh`, `spatial_join.min_overlap_fraction`, `equity_thresholds.high_access_min`, `equity_thresholds.medium_access_min`, `equity_thresholds.min_category_fraction` (default 0.05), `equity_thresholds.sensitivity_stability_threshold` (default 0.90), `scoring_weights` (grocery/healthcare/transit/other), `scoring_caps` (grocery/healthcare/transit/other), `bbox_limits` (max_edge_degrees, max_area_sq_degrees, enable_tiling, `tiling.failure_threshold`, `tiling.parallel`), `retry_policy` (attempts, per_request_timeout_s, max_total_duration_s, base_delay_ms, multiplier, jitter_factor)
 
 - [ ] 1.3 Create Streamlit configuration
   - [ ] 1.3.1 Create `.streamlit/config.toml` with theme settings (primaryColor, backgroundColor, secondaryBackgroundColor, textColor, font)
@@ -34,19 +35,24 @@
   - [ ] 2.1.1 Create `src/pipeline/census_fetcher.py` module
   - [ ] 2.1.2 Implement `fetch_block_groups()` function to fetch Census block group geometries
   - [ ] 2.1.3 Implement `fetch_demographics()` function to fetch population and median income data
-  - [ ] 2.1.4 Implement retry logic with exponential backoff for API failures
+  - [ ] 2.1.4 Implement retry logic per FR-1.1.4: enforce 10 s per-request timeout, 60 s hard-cap on total elapsed time (including in-flight requests), backoff formula `500ms × 2.0^attempt` with ±20 % jitter; non-retryable on HTTP 400/401/403/404 (raise immediately); retryable on 5xx; retryable on 429 with `Retry-After` header support; log each attempt at WARNING level with status code
   - [ ] 2.1.5 Add error handling for invalid city names or missing data
   - [ ] 2.1.6 Add logging for API requests and responses
   - [ ] 2.1.7 Validate fetched data (non-null geometries, valid FIPS codes)
+  - [ ] 2.1.8 Implement multi-county Census queries (FR-1.1.7): (a) derive county FIPS codes by spatially intersecting the bounding box against county polygons (TIGER/Line or bundled GeoJSON), log identified counties at INFO level; (b) issue per-county `for=block group:* in state:{state} in county:{county}` queries; (c) deduplicate by `geoid` keeping first-occurrence (lowest county FIPS), log WARNING for any conflicting attribute values across duplicates; (d) log WARNING for missing counties and continue; (e) raise `CensusDataUnavailableError` with full `(state_fips, county_fips)` list if all counties return no data
 
 - [ ] 2.2 Implement OpenStreetMap data fetching
   - [ ] 2.2.1 Create `src/pipeline/osm_fetcher.py` module
-  - [ ] 2.2.2 Implement `fetch_amenities()` function to download POIs (grocery, healthcare, transit)
+  - [ ] 2.2.1b Create `src/pipeline/tile_merger.py` module implementing the tile-merge routine: point dedup, polygon union for split geometries, and network edge rejoining with topological reconnection
+  - [ ] 2.2.2 Implement `fetch_amenities()` function to download all four POI types (grocery, healthcare, transit, other) using the OSM tag sets defined in DR-3.1.5; tag each feature with its `amenity_type` before returning
   - [ ] 2.2.3 Implement `fetch_street_network()` function to download walkable street network
   - [ ] 2.2.4 Add bounding box calculation from city name or explicit coordinates
-  - [ ] 2.2.5 Implement request throttling (1 request/second for Overpass API)
-  - [ ] 2.2.6 Add error handling for network download failures
-  - [ ] 2.2.7 Add logging for OSM queries and data statistics
+  - [ ] 2.2.5 Implement bounding box validation (FR-1.1.5): check max edge ≤ 1.0° and area ≤ 0.5 sq° (configurable via `pipeline_config.yaml`); raise `BoundingBoxTooLargeError` with descriptive message if exceeded
+  - [ ] 2.2.6 Implement optional bbox tiling (FR-1.1.6): when `bbox_limits.enable_tiling=true`, subdivide into equal nx×ny grid tiles (smallest grid where each tile ≤ max edge/area limits), assign row-major tile IDs; download per tile; merge using `src/pipeline/tile_merger.py` (point/POI dedup by `osm_id` first-occurrence, polygon union for split geometries, edge rejoining with 1e-6° tolerance for network topology); apply failure threshold (`bbox_limits.tiling.failure_threshold`, default 0.20) — raise `TilingFailureError` if skip fraction exceeds threshold; write skipped tile IDs to GeoParquet metadata under `skipped_tiles`
+  - [ ] 2.2.7 Implement request throttling (1 request/second for Overpass API)
+  - [ ] 2.2.8 Apply same retry policy as 2.1.4 (FR-1.1.4) to all OSMnx/Overpass requests: 60 s hard cap including in-flight requests, non-retryable on 400/401/403/404, retryable on 5xx, 429 with Retry-After support
+  - [ ] 2.2.9 Add error handling for network download failures
+  - [ ] 2.2.10 Add logging for OSM queries and data statistics
 
 - [ ] 2.3 Create data validation utilities
   - [ ] 2.3.1 Create `src/pipeline/validators.py` module
@@ -59,7 +65,7 @@
 
 - [ ] 3.1 Implement CRS transformation utilities
   - [ ] 3.1.1 Create `src/pipeline/crs_utils.py` module
-  - [ ] 3.1.2 Implement `determine_utm_zone()` function to calculate UTM zone from bounding box centroid
+  - [ ] 3.1.2 Implement `determine_utm_zone()` function: compute the centroid of the analysis bounding box in WGS84 and call `geopandas.estimate_utm_crs(latitude, longitude)` to derive the local UTM CRS deterministically; return the CRS for use by all spatial operations in the pipeline run
   - [ ] 3.1.3 Implement `transform_to_utm()` function to convert WGS84 to local UTM
   - [ ] 3.1.4 Implement `transform_to_wgs84()` function to convert UTM back to WGS84
   - [ ] 3.1.5 Add error handling for CRS transformation failures
@@ -68,7 +74,7 @@
 - [ ] 3.2 Implement isochrone generation
   - [ ] 3.2.1 Create `src/pipeline/isochrone.py` module
   - [ ] 3.2.2 Implement `calculate_isochrone()` function to generate 15-minute walking buffer for a single amenity
-  - [ ] 3.2.3 Use walking speed of 4.5 km/h for distance calculations
+  - [ ] 3.2.3 Read walking speed from `pipeline_config.yaml` (`walk_speed_kmh`, default 4.5 km/h per design §Isochrone Generation Algorithm); do not hard-code the value
   - [ ] 3.2.4 Implement network analysis using NetworkX shortest path algorithms
   - [ ] 3.2.5 Generate convex hull or alpha shape around reachable nodes
   - [ ] 3.2.6 Implement `calculate_all_isochrones()` function to process all amenities
@@ -77,12 +83,12 @@
 
 - [ ] 3.3 Implement spatial join and scoring
   - [ ] 3.3.1 Create `src/pipeline/scoring.py` module
-  - [ ] 3.3.2 Implement `spatial_join_amenities()` function to join block groups with isochrones
-  - [ ] 3.3.3 Implement `count_amenities_by_type()` function to count accessible amenities per block group
-  - [ ] 3.3.4 Implement `calculate_accessibility_score()` function using weighted formula (grocery: 0.35, healthcare: 0.30, transit: 0.25, other: 0.10)
-  - [ ] 3.3.5 Implement score normalization to 0-100 range based on city-wide distribution
-  - [ ] 3.3.6 Implement `assign_equity_category()` function (High: ≥70, Medium: 40-69, Low: <40)
-  - [ ] 3.3.7 Add validation to ensure total_amenities equals sum of individual counts
+  - [ ] 3.3.2 Implement `spatial_join_amenities()` function: after the geometric join, filter results to only rows where `overlap_area / block_area ≥ MIN_OVERLAP_FRACTION` (read from `pipeline_config.yaml`, default 0.10); all area calculations in local UTM projection
+  - [ ] 3.3.3 Implement `count_amenities_by_type()` function to count accessible amenities per block group across all four types: grocery, healthcare, transit, other
+  - [ ] 3.3.4 Implement `calculate_accessibility_score()`: compute `raw_score = w_g*min(grocery,c_g) + w_h*min(healthcare,c_h) + w_t*min(transit,c_t) + w_o*min(other,c_o)` (weights from `scoring_weights`, caps from `scoring_caps` in `pipeline_config.yaml`); store `raw_score` as a separate column in the output GeoDataFrame; then compute `accessibility_score = normalize(raw_score)`
+  - [ ] 3.3.5 Implement score normalization: `100 × (raw − city_min) / (city_max − city_min)`; when `city_max == city_min`, assign `accessibility_score = 50` to all records and log a WARNING about the degenerate distribution
+  - [ ] 3.3.6 Implement `assign_equity_category()`: (a) at pipeline startup validate `high_access_min > medium_access_min` and both in [0,100] — raise `ThresholdConfigError` if violated; (b) after scoring run mandatory percentile check — each category ≥ `min_category_fraction` (default 5%), log WARNING and record `"percentile_check": "WARN"/"PASS"` in metadata; (c) run mandatory ±5-point sensitivity test — compute stability for +5 and −5 shifts, compare against `sensitivity_stability_threshold` (default 90%), log WARNING and record `"sensitivity_check": "WARN"/"PASS"` in metadata; (d) write all seven `equity_thresholds.*` metadata fields to GeoParquet (thresholds, percentile_check, category_fractions, sensitivity_check, sensitivity_stability, validated_at timestamp) and log at INFO level
+  - [ ] 3.3.7 Add validation to ensure `total_amenities` equals `grocery_count + healthcare_count + transit_count + other_count` for every record
 
 - [ ] 3.4 Implement spatial indexing for performance
   - [ ] 3.4.1 Add R-tree spatial index creation for block groups
@@ -118,9 +124,16 @@
 - [ ] 4.4 Implement data export
   - [ ] 4.4.1 Create `src/pipeline/exporter.py` module
   - [ ] 4.4.2 Implement `export_to_geoparquet()` function with snappy compression
-  - [ ] 4.4.3 Add metadata to GeoParquet file (processing date, parameters, data sources)
+  - [ ] 4.4.3 Add metadata to GeoParquet file: processing date, pipeline parameters, data sources, `equity_thresholds.*` validation fields (all seven keys from FR-1.2.4), and `skipped_tiles` list (from tiling, if applicable)
   - [ ] 4.4.4 Implement geometry simplification to reduce file size (tolerance=0.0001)
-  - [ ] 4.4.5 Validate output file size is under 50 MB
+  - [ ] 4.4.5 Validate output file size is under 50 MB; if the limit is exceeded, apply the following remediation steps in order:
+    - [ ] 4.4.5.1 Increase geometry simplification tolerance (try `tolerance=0.0005`, then `0.001`) and re-run snappy compression; log the file size after each step
+    - [ ] 4.4.5.2 If simplification alone is insufficient, implement spatial chunking: split the output by tile or region (e.g., quadrant grid), export each chunk as a separate GeoParquet file, and add a `README_assembly.md` explaining how to load and concatenate the chunks in the Streamlit app
+    - [ ] 4.4.5.3 Document expected output sizes for different city scales in `docs/data_sources.md`:
+      - Small city (< 100k pop): ~5–15 MB — single file, default tolerance sufficient
+      - Medium city (100k–500k pop): ~15–40 MB — may need tolerance increase
+      - Large city (> 500k pop): ~40–100 MB — likely requires spatial chunking or aggressive simplification
+    - [ ] 4.4.5.4 Raise a `FileSizeLimitError` with a descriptive message if the file still exceeds 50 MB after all remediation steps, listing which steps were attempted and the resulting sizes
   - [ ] 4.4.6 Add logging for export statistics (file size, record count, processing time)
 
 ## 5. Streamlit Dashboard
@@ -161,7 +174,7 @@
 
 - [ ] 5.5 Implement sidebar controls
   - [ ] 5.5.1 Add layer toggle radio buttons (Accessibility Score / Median Income)
-  - [ ] 5.5.2 Add income threshold slider (range: $0 - $200k, default: $50k)
+  - [ ] 5.5.2 Add income threshold slider (range: $0–$200k, location-adjusted default): compute the slider's initial value as `default_threshold = clamp(city_median_income * DEFAULT_RATIO, 0, 200_000)` where `city_median_income` is the median of the `median_income` column in the loaded GeoParquet data and `DEFAULT_RATIO = 0.5` (configurable). Display the computed default value in the slider tooltip (e.g., "Default: $47,500 — 50 % of city median income"). Fall back to $50,000 if `city_median_income` is unavailable or zero.
   - [ ] 5.5.3 Add accessibility score range slider (range: 0-100, default: 0-100)
   - [ ] 5.5.4 Add population density filter slider (optional)
   - [ ] 5.5.5 Add "Reset Filters" button
@@ -195,6 +208,10 @@
   - [ ] 6.1.7 Test `fetch_amenities()` with mock OSM data
   - [ ] 6.1.8 Test `fetch_street_network()` with sample bounding box
   - [ ] 6.1.9 Test bounding box calculation
+  - [ ] 6.1.10 Test bbox validation: verify `BoundingBoxTooLargeError` raised when edge > 1.0° or area > 0.5 sq°; verify valid bbox passes
+  - [ ] 6.1.11 Test bbox tiling: verify nx×ny grid produces tiles within size limits; verify point dedup keeps first-occurrence by `osm_id`; verify polygon union reconstructs split geometries; verify edge rejoining reconnects split network edges within 1e-6° tolerance; verify `TilingFailureError` raised when skip fraction > failure_threshold; verify skipped tile IDs written to GeoParquet metadata
+  - [ ] 6.1.12 Test multi-county Census queries: verify county FIPS codes are derived by bbox-polygon intersection; verify per-county queries are issued; verify `geoid` deduplication keeps first-occurrence (lowest county FIPS) and logs WARNING for conflicting attribute values; verify WARNING logged for missing county; verify `CensusDataUnavailableError` raised with full `(state_fips, county_fips)` list when all counties return no data
+  - [ ] 6.1.13 Test retry policy: verify per-request timeout enforced; verify 60 s hard cap cancels in-flight request and stops retries; verify backoff delays match formula with jitter; verify HTTP 400/401/403/404 raise immediately without retry; verify 5xx triggers retry; verify 429 with `Retry-After` header uses header value as delay; verify 429 without header uses computed backoff
 
 - [ ] 6.2 Unit tests for spatial analysis
   - [ ] 6.2.1 Create `tests/test_crs_utils.py`
@@ -204,10 +221,11 @@
   - [ ] 6.2.5 Test isochrone generation with synthetic network
   - [ ] 6.2.6 Test parallel processing of isochrones
   - [ ] 6.2.7 Create `tests/test_scoring.py`
-  - [ ] 6.2.8 Test spatial join with synthetic geometries
-  - [ ] 6.2.9 Test accessibility score calculation with known inputs
-  - [ ] 6.2.10 Test equity category assignment
-  - [ ] 6.2.11 Test score normalization
+  - [ ] 6.2.8 Test spatial join with synthetic geometries: verify area-overlap threshold filter correctly includes/excludes block groups at/below `MIN_OVERLAP_FRACTION`
+  - [ ] 6.2.9 Test `raw_score` computation: verify correct capped weighted sum with known inputs including `other_count`; verify caps are applied correctly; verify `raw_score` is stored as a separate column in output
+  - [ ] 6.2.10 Test score normalization: verify `accessibility_score = 100*(raw-min)/(max-min)`; verify `city_max == city_min` edge-case assigns 50 to all records and logs WARNING
+  - [ ] 6.2.11 Test equity category assignment: verify `ThresholdConfigError` raised when `high_access_min ≤ medium_access_min` or either outside [0,100]; verify percentile check logs WARNING and records WARN/PASS in metadata; verify sensitivity test computes stability for ±5 shifts and records WARN/PASS; verify all seven `equity_thresholds.*` metadata fields written to GeoParquet
+  - [ ] 6.2.12 Test equity category assignment reads thresholds from config rather than hard-coded values
 
 - [ ] 6.3 Unit tests for data validation
   - [ ] 6.3.1 Create `tests/test_validators.py`
@@ -229,8 +247,8 @@
 
 - [ ] 6.5 Property-based tests
   - [ ] 6.5.1 Create `tests/test_properties.py`
-  - [ ] 6.5.2 Implement property test for spatial integrity (intersection implies distance constraint)
-  - [ ] 6.5.3 Implement property test for score monotonicity (more amenities → higher score)
+  - [ ] 6.5.2 Implement property test for spatial integrity: verify that only block groups where `overlap_area / block_area ≥ MIN_OVERLAP_FRACTION` are counted as having access; test at-threshold, below-threshold, and zero-overlap cases; all area calculations in UTM
+  - [ ] 6.5.3 Implement property test for score monotonicity: verify `raw_score(b1) > raw_score(b2) ⟹ accessibility_score(b1) ≥ accessibility_score(b2)` where `raw_score` uses the capped weighted formula; do NOT assert monotonicity over `total_amenities`
   - [ ] 6.5.4 Implement property test for CRS consistency (output always WGS84)
   - [ ] 6.5.5 Implement property test for data completeness (all block groups have scores)
   - [ ] 6.5.6 Implement property test for equity category consistency (score thresholds)
@@ -340,8 +358,10 @@
   - [ ] 10.2.2 Verify all accessibility scores are in range [0, 100]
   - [ ] 10.2.3 Verify equity categories are correctly assigned
   - [ ] 10.2.4 Verify output CRS is WGS84
-  - [ ] 10.2.5 Verify total_amenities equals sum of individual counts
-  - [ ] 10.2.6 Generate data quality report
+  - [ ] 10.2.5 Verify `total_amenities` equals `grocery_count + healthcare_count + transit_count + other_count` for every record
+  - [ ] 10.2.6 Verify `raw_score` column is present in output and all values are non-negative floats
+  - [ ] 10.2.7 Verify all seven `equity_thresholds.*` metadata fields are present in GeoParquet metadata
+  - [ ] 10.2.8 Generate data quality report
 
 - [ ] 10.3 Performance validation
   - [ ] 10.3.1 Measure pipeline execution time for test city

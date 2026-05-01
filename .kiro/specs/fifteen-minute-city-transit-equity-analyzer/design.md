@@ -224,8 +224,17 @@ class Amenity:
 **Validation Rules**:
 - `osm_id` must be unique positive integer
 - `geometry` must be a valid Point
-- `amenity_type` must be one of: ["grocery", "healthcare", "transit", "education", "recreation"]
+- `amenity_type` must be one of: ["grocery", "healthcare", "transit", "other"]
 - `name` can be null/empty string
+
+**OSM tag mapping** (see also DR-3.1.5 in requirements.md):
+
+| `amenity_type` | OSM tags fetched |
+|---|---|
+| `grocery` | `amenity=supermarket`, `shop=supermarket`, `shop=grocery`, `shop=convenience` |
+| `healthcare` | `amenity=hospital`, `amenity=clinic`, `amenity=doctors`, `amenity=pharmacy` |
+| `transit` | `public_transport=stop_position`, `highway=bus_stop`, `railway=station`, `railway=halt` |
+| `other` | `amenity=school`, `amenity=library`, `amenity=community_centre`, `leisure=park`, `amenity=place_of_worship` |
 
 ### Model 3: Isochrone
 
@@ -255,11 +264,13 @@ class ProcessedEquityData:
     geometry: Polygon             # Block group boundary (WGS84)
     population: int               # Total population
     median_income: float          # Median household income ($)
-    accessibility_score: float    # Composite accessibility metric (0-100)
+    raw_score: float              # Capped weighted sum prior to normalization (for audit/monotonicity)
+    accessibility_score: float    # Composite accessibility metric (0-100); normalize(raw_score)
     grocery_count: int            # Number of grocery stores within 15 min
     healthcare_count: int         # Number of healthcare facilities within 15 min
     transit_count: int            # Number of transit stops within 15 min
-    total_amenities: int          # Total amenities within 15 min
+    other_count: int              # Number of other daily-need amenities within 15 min
+    total_amenities: int          # Total amenities within 15 min (display/filter field)
     equity_category: str          # "High Access", "Medium Access", "Low Access"
 ```
 
@@ -270,39 +281,114 @@ class ProcessedEquityData:
 - `total_amenities` must equal sum of individual amenity counts
 - `equity_category` must be one of: ["High Access", "Medium Access", "Low Access"]
 
-**Accessibility Score Calculation**:
-```
-accessibility_score = (
-    (grocery_count * 0.35) +
-    (healthcare_count * 0.30) +
-    (transit_count * 0.25) +
-    (other_amenities * 0.10)
-) * normalization_factor
+**Equity Category Threshold Rationale, Configurability, and Validation**:
+
+The default thresholds mapping `accessibility_score` → `equity_category` are:
+
+| Score range | Category |
+|---|---|
+| ≥ 70 | High Access |
+| 40 – 69 | Medium Access |
+| < 40 | Low Access |
+
+*Rationale*: These initial cut-points are inspired by common tertile/quartile splits used in urban equity literature (e.g., EPA EJScreen's percentile-based tiers and NACTO's access-shed guidance) and are designed so that, on a well-served city, roughly the top third of block groups fall in "High Access". They are **not** derived from a single authoritative standard and should be treated as a starting point, not a fixed rule.
+
+*Configurability*: Thresholds must be configurable per city or dataset. They are exposed as a dedicated config block in `pipeline_config.yaml` (or equivalent environment variable overrides):
+
+```yaml
+equity_thresholds:
+  high_access_min: 70   # block groups with score >= this value → "High Access"
+  medium_access_min: 40 # block groups with score >= this value → "Medium Access"
+                        # block groups below medium_access_min  → "Low Access"
 ```
 
-Where normalization_factor scales the result to 0-100 range based on city-wide distribution.
+The `assign_equity_category()` function reads these values at runtime so that analysts can recalibrate without code changes.
+
+*Validation plan*: The following steps are now mandatory and automated (see FR-1.2.4 for full specification):
+1. **Threshold bounds check** — enforced at pipeline startup; raises `ThresholdConfigError` if `high_access_min ≤ medium_access_min` or either is outside [0, 100].
+2. **Percentile check** — each category must contain ≥ `min_category_fraction` (default 5 %) of block groups; result recorded as PASS/WARN in GeoParquet metadata.
+3. **Sensitivity test** — re-assign with ±5-point threshold shifts; stability ≥ `sensitivity_stability_threshold` (default 90 %) required; result recorded as PASS/WARN in GeoParquet metadata.
+4. **Stakeholder/ground-truth review** — optional manual step; overlay results against known under-served neighbourhoods and adjust thresholds if needed.
+5. **Document the chosen values** — final thresholds, validation results, and timestamp are written to GeoParquet metadata under `equity_thresholds.*` keys and logged at INFO level.
+
+**Accessibility Score Calculation** (canonical definition — see also [Accessibility Score Formula](#accessibility-score-formula) in Implementation Notes):
+
+```
+raw_score = (
+    0.35 * min(grocery_count,    5)  +
+    0.30 * min(healthcare_count, 3)  +
+    0.25 * min(transit_count,   10)  +
+    0.10 * min(other_count,      5)
+)
+
+accessibility_score = normalize(raw_score)
+```
+
+Where:
+- `raw_score` is the **capped weighted sum prior to normalization**. It is stored as a separate output column for transparency and is the quantity used for all monotonicity checks (Property 2).
+- `normalize(x)` scales the raw weighted sum to the **0–100** range using city-wide min–max normalization: `100 * (x − city_min) / (city_max − city_min)`.
+- **Normalization edge-case**: when `city_max == city_min` (degenerate distribution — all block groups have the same raw score), set `accessibility_score = 50` for all records and log a WARNING. Do not divide by zero.
+- `other_count` is the count of "other daily-need amenities" (schools, libraries, community centres, parks, places of worship — see Amenity OSM tag mapping above) reachable within 15 minutes.
+- **Caps** (`min(count, cap)`) prevent a single block group with an unusually high amenity density from compressing the rest of the distribution. Cap values and their rationale:
+
+  | Field | Cap | Rationale |
+  |---|---|---|
+  | `grocery_count` | 5 | ≥ 5 grocery stores within 15 min is effectively full coverage for any household |
+  | `healthcare_count` | 3 | ≥ 3 clinics/hospitals represents robust healthcare access |
+  | `transit_count` | 10 | ≥ 10 stops indicates dense transit coverage; additional stops add marginal value |
+  | `other_count` | 5 | Mirrors grocery cap; prevents miscellaneous POIs from inflating scores |
+
+- Weights (0.35 / 0.30 / 0.25 / 0.10) reflect the relative importance of amenity types for basic daily needs. They are configurable in `pipeline_config.yaml` under `scoring_weights`.
+- Caps (5 / 3 / 10 / 5) are configurable in `pipeline_config.yaml` under `scoring_caps`.
 
 ## Correctness Properties
 
 ### Property 1: Spatial Integrity
-**Statement**: For all block groups B and isochrones I, if B intersects I, then the centroid of B must be within the maximum walking distance from the amenity that generated I.
+**Statement**: For all block groups B and isochrones I, B is considered accessible to the amenity that generated I only when the overlap between B and I is substantial — specifically, when the intersection area exceeds a minimum coverage threshold. A bare boundary clip (e.g., a shared edge or a tiny corner overlap) does not constitute meaningful access.
+
+**Rationale for area-threshold approach**: Using `intersects(block_group.geometry, isochrone.geometry)` alone is insufficient because a large or irregularly shaped block group can have its boundary clip an isochrone while the majority of its residents — and its centroid — lie well outside walking distance. Replacing the centroid check with an area-overlap threshold directly measures how much of the block group's population is plausibly within reach, which is the quantity that matters for equity analysis.
 
 **Formal Expression**:
 ```
 ∀ block_group ∈ BlockGroups, ∀ isochrone ∈ Isochrones:
-    intersects(block_group.geometry, isochrone.geometry) ⟹
-    network_distance(block_group.centroid, isochrone.amenity) ≤ 15_minutes
+    area(intersection(block_group.geometry, isochrone.geometry))
+        ≥ MIN_OVERLAP_FRACTION * area(block_group.geometry)
+    ⟹
+    block_group is counted as having access to isochrone.amenity
+```
+
+Where:
+- `MIN_OVERLAP_FRACTION` is a configurable parameter (default: **0.10**, i.e., at least 10 % of the block group's area must fall inside the isochrone). It is exposed in `pipeline_config.yaml` under `spatial_join.min_overlap_fraction`.
+- All area calculations are performed in the local UTM projection (metres²) to avoid distortion from geographic coordinates.
+- Block groups where no isochrone meets the threshold contribute zero to their amenity counts and receive the lowest accessibility scores, which is the correct conservative outcome.
+
+**Implementation note**: In GeoPandas this is computed after the spatial join as:
+```python
+joined["overlap_area"] = joined.geometry.intersection(isochrone_geom).area
+joined["block_area"]   = joined.geometry.area
+joined = joined[joined["overlap_area"] / joined["block_area"] >= MIN_OVERLAP_FRACTION]
 ```
 
 ### Property 2: Score Monotonicity
-**Statement**: For all block groups, accessibility score must increase monotonically with the number of accessible amenities.
+**Statement**: For all block groups, `accessibility_score` must increase monotonically with the **capped weighted sum** (`raw_score`) of accessible amenities. Monotonicity is defined over `raw_score`, not over `total_amenities`, because the `min()` caps in the scoring formula mean that adding amenities beyond a cap does not increase `raw_score` — and therefore should not be expected to increase `accessibility_score` either. This is intentional: the caps prevent outlier-dense block groups from compressing the rest of the distribution (see cap rationale in [Model 4: ProcessedEquityData](#model-4-processedequitydata)).
+
+**Definitions**:
+```
+raw_score(b) =
+    0.35 * min(b.grocery_count,    5)  +
+    0.30 * min(b.healthcare_count, 3)  +
+    0.25 * min(b.transit_count,   10)  +
+    0.10 * min(b.other_count,      5)
+```
 
 **Formal Expression**:
 ```
 ∀ b1, b2 ∈ ProcessedEquityData:
-    b1.total_amenities > b2.total_amenities ⟹
+    raw_score(b1) > raw_score(b2) ⟹
     b1.accessibility_score ≥ b2.accessibility_score
 ```
+
+**Note on `total_amenities`**: `total_amenities` is a raw count field used for display and filtering; it is not the input to the scoring function and does not have a monotonic relationship with `accessibility_score` once any per-type cap is saturated. Tests and assertions must use `raw_score`, not `total_amenities`, when verifying this property.
 
 ### Property 3: CRS Consistency
 **Statement**: All geometries in the final output must be in WGS84 (EPSG:4326) coordinate reference system.
@@ -327,15 +413,16 @@ Where normalization_factor scales the result to 0-100 range based on city-wide d
 ```
 
 ### Property 5: Equity Category Consistency
-**Statement**: Equity categories must be assigned consistently based on accessibility score thresholds.
+**Statement**: Equity categories must be assigned consistently based on accessibility score thresholds. The thresholds themselves are configurable (see `equity_thresholds` in `pipeline_config.yaml`); the property holds for whatever values are configured.
 
 **Formal Expression**:
 ```
 ∀ record ∈ ProcessedEquityData:
-    (record.accessibility_score ≥ 70 ⟹ record.equity_category == "High Access") ∧
-    (40 ≤ record.accessibility_score < 70 ⟹ record.equity_category == "Medium Access") ∧
-    (record.accessibility_score < 40 ⟹ record.equity_category == "Low Access")
+    (record.accessibility_score ≥ HIGH_MIN  ⟹ record.equity_category == "High Access") ∧
+    (MED_MIN ≤ record.accessibility_score < HIGH_MIN ⟹ record.equity_category == "Medium Access") ∧
+    (record.accessibility_score < MED_MIN   ⟹ record.equity_category == "Low Access")
 ```
+Where `HIGH_MIN` and `MED_MIN` are read from `equity_thresholds` config (defaults: 70 and 40).
 
 ## Error Handling
 
@@ -460,14 +547,17 @@ Where normalization_factor scales the result to 0-100 range based on city-wide d
 **Properties to Test**:
 
 1. **Spatial Integrity Property**:
-   - Generate random block groups and isochrones
-   - Verify intersection implies distance constraint
-   - Test with various CRS projections
+   - Generate random block groups and isochrones with known overlap fractions
+   - Verify that only block groups where `overlap_area / block_area ≥ MIN_OVERLAP_FRACTION` are counted as having access
+   - Test boundary cases: overlap exactly at threshold, just below threshold, and zero overlap
+   - Test with various CRS projections (all area calculations must use UTM)
 
 2. **Score Monotonicity Property**:
-   - Generate random amenity counts
-   - Verify scores increase with amenity count
-   - Test edge cases (zero amenities, maximum amenities)
+   - Generate random per-type amenity counts (`grocery_count`, `healthcare_count`, `transit_count`, `other_count`)
+   - Compute `raw_score` using the capped weighted formula for each generated record
+   - Verify that `raw_score(b1) > raw_score(b2)` implies `accessibility_score(b1) ≥ accessibility_score(b2)` after normalization
+   - Test edge cases: all counts at zero, all counts at or above their caps (raw scores equal → scores equal), one type at cap while others vary
+   - Do **not** assert monotonicity over `total_amenities` directly — counts beyond a cap do not increase `raw_score`
 
 3. **CRS Consistency Property**:
    - Generate random geometries in various CRS
@@ -695,10 +785,10 @@ The pipeline must handle three coordinate reference systems:
    - OSM data is in WGS84
    - Final output must be WGS84
 
-2. **Local UTM Zone**: For accurate distance calculations
-   - Determine UTM zone from bounding box centroid
-   - Transform to UTM for isochrone generation
-   - Use meters for walk distance calculations
+2. **Local UTM Zone**: For accurate distance and area calculations
+   - Determine UTM zone deterministically from the bounding box centroid using `geopandas.estimate_utm_crs(latitude, longitude)`
+   - Transform to UTM for isochrone generation and area-overlap calculations (FR-1.2.2)
+   - Use metres for walk distance and area calculations
 
 3. **Web Mercator (EPSG:3857)**: For web map display (handled by Folium)
 
@@ -715,27 +805,26 @@ The 15-minute walking isochrone is calculated using network analysis:
 2. For each amenity point:
    - Find nearest network node
    - Calculate shortest paths to all nodes within 15-minute walk
-   - Use walking speed: 4.5 km/h (typical urban walking speed)
+   - Use walking speed: 4.5 km/h as the default [\[1\]](#ref-1) — this sits in the middle of the empirically observed range of **4.0–5.5 km/h** for adults in urban environments. Override this value for analyses targeting elderly populations (~3.0–3.5 km/h), children, or hilly terrain where effective speed is lower.
    - Generate convex hull or alpha shape around reachable nodes
 3. Union overlapping isochrones by amenity type
 
 ### Accessibility Score Formula
 
-The composite accessibility score combines multiple amenity types:
+The canonical formula is defined in [Model 4: ProcessedEquityData](#model-4-processedequitydata) above. Reproduced here for implementation reference:
 
 ```
-accessibility_score = normalize(
-    0.35 * min(grocery_count, 5) +
-    0.30 * min(healthcare_count, 3) +
-    0.25 * min(transit_count, 10) +
-    0.10 * min(other_count, 5)
+raw_score = (
+    0.35 * min(grocery_count,    5)  +
+    0.30 * min(healthcare_count, 3)  +
+    0.25 * min(transit_count,   10)  +
+    0.10 * min(other_count,      5)
 )
+
+accessibility_score = normalize(raw_score)
 ```
 
-Where:
-- Weights reflect relative importance of amenity types
-- Counts are capped to prevent outliers from dominating
-- Normalization scales to 0-100 based on city-wide distribution
+Where `normalize(x) = 100 * (x − city_min) / (city_max − city_min)` applied across all block groups in the dataset. `raw_score` is stored as a separate GeoParquet column. Caps, weight rationale, configurability, and the normalization edge-case are documented in the model definition above.
 
 ### Streamlit Deployment Checklist
 
@@ -762,3 +851,9 @@ For successful deployment to Streamlit Cloud:
    - Verify data loads correctly
    - Test all interactive features
    - Check mobile responsiveness
+
+## References
+
+<a name="ref-1"></a>**[1]** Bohannon, R. W. (1997). "Comfortable and maximum walking speed of adults aged 20–79 years: reference values and determinants." *Age and Ageing*, 26(1), 15–19. <https://doi.org/10.1093/ageing/26.1.15>
+
+This study, widely cited in urban planning and transport research, reports mean comfortable walking speeds of approximately 4.5–5.0 km/h for healthy adults. The broader literature (including WHO pedestrian safety guidelines and NACTO urban street design guides) consistently places typical urban pedestrian speeds in the **4.0–5.5 km/h** range. A default of **4.5 km/h** is therefore a conservative, inclusive choice that slightly favours slower walkers. Implementers should expose this as a configurable parameter (`walk_speed_kmh`) so analyses can be re-run for specific demographic contexts (e.g., senior-focused equity studies) or steep terrain where effective walking speed is reduced.

@@ -10,17 +10,123 @@
 
 **FR-1.1.3**: The system SHALL download the walkable street network for the target area using OSMnx with `network_type='walk'`.
 
-**FR-1.1.4**: The system SHALL handle API failures gracefully with retry logic (minimum 3 attempts with exponential backoff).
+**FR-1.1.4**: The system SHALL handle API failures gracefully with retry logic applying to all external API calls (Census API, Overpass API via OSMnx). The retry behaviour SHALL conform to the following parameters, all configurable via `pipeline_config.yaml` (`retry_policy`):
+
+- **Target attempts**: 3 (i.e., 1 initial attempt + 2 retries). This is a target, not a guarantee — the maximum total retry duration (below) is a hard cap that may stop retries early before all 3 attempts are made.
+- **Per-request timeout**: **10 seconds** — each individual HTTP request SHALL be cancelled and treated as a failure if no response is received within this duration.
+- **Maximum total retry duration**: **60 seconds hard cap** on total elapsed time measured from the start of the first attempt. The system SHALL NOT start any new attempt (initial or retry) if doing so would cause the elapsed time to exceed this cap. The cap includes the duration of any in-flight request — if a request is still running when the cap is reached, it SHALL be cancelled and the final error raised immediately.
+- **Backoff formula**: `delay = base_delay × multiplier ^ attempt_number` where:
+  - `base_delay` = **500 ms** (delay before the first retry)
+  - `multiplier` = **2.0** (doubles the delay on each subsequent retry)
+  - `attempt_number` starts at 0 for the first retry (giving delays of 500 ms, 1 000 ms, 2 000 ms, …)
+- **Jitter**: Each computed delay SHALL have a random jitter of ±20 % applied (i.e., `delay × uniform(0.8, 1.2)`) to prevent thundering-herd effects when multiple pipeline runs execute concurrently.
+- **HTTP status handling**:
+  - **Non-retryable — raise immediately** with a descriptive message: HTTP 400 (Bad Request), 401 (Unauthorized), 403 (Forbidden), 404 (Not Found). These indicate client-side or auth errors that will not resolve on retry.
+  - **Retryable**: HTTP 5xx (server errors) — apply backoff and retry up to the target attempts / duration cap.
+  - **Retryable with rate-limit awareness**: HTTP 429 (Too Many Requests) — treat as retryable; if the response includes a `Retry-After` header, use its value (in seconds) as the delay instead of the computed backoff delay (still apply jitter on top). If `Retry-After` exceeds the remaining time under the 60 s cap, raise immediately rather than waiting.
+- **Logging**: Each retry attempt SHALL be logged at WARNING level with the attempt number, elapsed time, computed delay, HTTP status code, and the error that triggered the retry.
+
+**FR-1.1.5** *(Bounding Box Validation — extends FR-1.1.2 and FR-1.1.3)*: Before issuing any OSMnx download (POIs or street network), the system SHALL validate the derived or user-supplied bounding box against the following limits, configurable via `pipeline_config.yaml` (`bbox_limits`):
+
+- Maximum edge length: **1.0 decimal degrees** (~111 km) on any single side
+- Maximum area: **0.5 square decimal degrees** (~6,000 km²)
+
+If the bounding box exceeds either limit the system SHALL:
+1. Log a descriptive error identifying which limit was exceeded and by how much
+2. Raise a `BoundingBoxTooLargeError` with an actionable message (e.g., "Bounding box area 0.72 sq° exceeds limit 0.5 sq°; reduce the target area or enable tiling")
+3. Reject the request — it SHALL NOT silently proceed with an oversized download that risks memory overflow or Overpass API timeout
+
+**FR-1.1.6** *(Bounding Box Tiling — extends FR-1.1.5)*: The system SHALL support an optional automatic tiling strategy for bounding boxes that exceed the size limits defined in FR-1.1.5. When tiling is enabled (`pipeline_config.yaml`: `bbox_limits.enable_tiling: true`):
+
+1. **Grid subdivision** — divide the oversized bounding box into an equal-grid of *nx × ny* non-overlapping tiles, where *nx* and *ny* are the smallest integers such that every tile's edge length ≤ `bbox_limits.max_edge_degrees` and area ≤ `bbox_limits.max_area_sq_degrees`. Tile IDs SHALL be assigned in row-major order (left-to-right, top-to-bottom) starting at `tile_0_0`.
+
+2. **Per-tile downloads** — execute OSMnx POI and street-network downloads independently for each tile. Tiles are processed sequentially by default; parallel execution is optional and controlled by `bbox_limits.tiling.parallel: true`.
+
+3. **Merge and deduplication rules** — after all tile downloads complete, merge results using the following geometry-type-specific rules:
+   - **Point features (POIs)**: deduplicate by `osm_id`; keep a single canonical record (first occurrence in tile-ID order). Discard all duplicates.
+   - **Polygon features**: deduplicate by `osm_id` using the same first-occurrence rule. Where the same polygon spans a tile boundary and is returned by multiple tiles, take the union of the partial geometries to reconstruct the full polygon.
+   - **Line/network edges**: deduplicate edges by `osm_id`; where an edge is split at a tile boundary, rejoin the split segments by matching `osm_id` and reconnecting endpoints within a tolerance of 1 × 10⁻⁶ degrees. Merge nodes that are topologically equivalent (same coordinates within tolerance) to preserve graph connectivity. This tile-merge routine SHALL be implemented in `src/pipeline/tile_merger.py`.
+
+4. **Failure threshold** — if any tile download fails, log the failure (tile ID, error message) and skip that tile. After all tiles are attempted:
+   - Compute `skip_fraction = skipped_tiles / total_tiles`.
+   - If `skip_fraction > bbox_limits.tiling.failure_threshold` (default: **0.20**, configurable), raise a `TilingFailureError` listing all skipped tile IDs and the skip fraction.
+   - If `skip_fraction ≤ failure_threshold`, continue with the available data.
+   - All skipped tile IDs SHALL be logged at WARNING level AND written to the GeoParquet output metadata under the key `skipped_tiles`.
+
+When tiling is disabled (default), the system SHALL reject oversized requests per FR-1.1.5.
+
+**FR-1.1.7** *(Multi-County Census Queries — extends FR-1.1.1)*: The system SHALL handle cities that span multiple counties using the following steps:
+
+1. **Derive county FIPS codes** — before issuing any Census queries, determine which counties intersect the analysis bounding box by spatially intersecting the bounding box against a county polygon dataset (e.g., Census TIGER/Line county boundaries fetched via `cenpy` or a bundled lightweight county GeoJSON). The result is the set of `(state_fips, county_fips)` pairs to query. This step SHALL be logged at INFO level listing all identified county FIPS codes.
+2. **Issue per-county queries** — issue a separate Census API query per county using `for=block group:* in state:{state} in county:{county}` and concatenate all results into a single GeoDataFrame.
+3. **Deduplicate by `geoid`** — block groups returned by more than one county query (e.g., at county boundaries) SHALL be deduplicated using the following deterministic strategy:
+   - Keep the first-occurrence record for a given `geoid` (i.e., the record from the lowest-sorted county FIPS code).
+   - If any non-geometry attribute value differs between duplicate records for the same `geoid`, log a WARNING identifying the `geoid`, the conflicting field names, and the values from each source county query.
+   - Geometry is taken from the first-occurrence record; conflicting geometries are not merged.
+4. **Handle missing counties** — if Census data is unavailable for one or more counties (API returns no records), log a WARNING identifying the missing county FIPS codes and continue with the available data. The system SHALL NOT silently drop block groups without logging.
+5. **Handle total failure** — if no Census data is returned for any county, raise `CensusDataUnavailableError` with the full list of queried `(state_fips, county_fips)` pairs so the caller can diagnose which counties were attempted.
 
 ### 1.2 Spatial Analysis
 
-**FR-1.2.1**: The system SHALL calculate 15-minute walking isochrones around each amenity using network analysis with a walking speed of 4.5 km/h.
+**FR-1.2.1**: The system SHALL calculate 15-minute walking isochrones around each amenity using network analysis. The default walking speed SHALL be **4.5 km/h**, which is configurable via `pipeline_config.yaml` (`walk_speed_kmh`). The plausible range is 4.0–5.5 km/h for healthy adults; lower values (e.g., 3.0–3.5 km/h) should be used for analyses targeting elderly populations, children, or hilly terrain.
 
-**FR-1.2.2**: The system SHALL perform spatial joins between Census block groups and 15-minute accessibility buffers to determine which amenities are accessible from each block group.
+**FR-1.2.2**: The system SHALL perform spatial joins between Census block groups and 15-minute accessibility buffers using an **area-overlap threshold**: a block group is counted as having access to an amenity only when `area(intersection(block_group, isochrone)) ≥ MIN_OVERLAP_FRACTION × area(block_group)`. The default `MIN_OVERLAP_FRACTION` SHALL be **0.10** (10%) and SHALL be configurable via `pipeline_config.yaml` (`spatial_join.min_overlap_fraction`). All area calculations SHALL be performed in the **local UTM projection**, determined deterministically as follows: compute the centroid of the analysis bounding box in WGS84, then derive the UTM CRS using `geopandas.estimate_utm_crs(latitude, longitude)` (or equivalent). Both the block group geometries and the isochrone geometries SHALL be reprojected to this centroid-derived UTM CRS before computing `area(intersection(...))` and `area(block_group)`. The same UTM CRS SHALL be used consistently for all area calculations within a single pipeline run.
 
-**FR-1.2.3**: The system SHALL calculate an accessibility score (0-100) for each block group based on the number and types of amenities reachable within 15 minutes.
+**FR-1.2.3**: The system SHALL calculate an accessibility score (0–100) for each block group using the canonical capped weighted formula:
 
-**FR-1.2.4**: The system SHALL assign equity categories ("High Access", "Medium Access", "Low Access") to each block group based on accessibility score thresholds (≥70, 40-69, <40).
+```
+raw_score = (
+    0.35 * min(grocery_count,    5)  +
+    0.30 * min(healthcare_count, 3)  +
+    0.25 * min(transit_count,   10)  +
+    0.10 * min(other_count,      5)
+)
+
+accessibility_score = normalize(raw_score)
+```
+
+Where:
+- `raw_score` is the **capped weighted sum prior to any normalization**. It is the quantity used for all monotonicity checks (Property 2) and SHALL be stored in the output GeoParquet as a separate column (see DR-3.2.1) for transparency and audit purposes.
+- `normalize(x) = 100 × (x − city_min) / (city_max − city_min)` across all block groups, where `city_min` and `city_max` are the minimum and maximum `raw_score` values in the dataset.
+
+**Normalization edge-case**: When `city_max == city_min` (i.e., all block groups have identical raw scores — possible for very small cities or datasets with a single block group), the division is undefined. In this case the system SHALL assign `accessibility_score = 50` to all block groups and log a WARNING stating that min-max normalization was skipped due to a degenerate score distribution.
+
+**Configurability**: Both the per-type caps and the weights SHALL be read from `pipeline_config.yaml` at runtime:
+- Weights: `scoring_weights` (keys: `grocery`, `healthcare`, `transit`, `other`; defaults: 0.35, 0.30, 0.25, 0.10)
+- Caps: `scoring_caps` (keys: `grocery`, `healthcare`, `transit`, `other`; defaults: 5, 3, 10, 5)
+
+Note: `total_amenities` is a display field and does not have a monotonic relationship with `accessibility_score` once any per-type cap is saturated. The OSM tags that populate each count field are defined in DR-3.1.5; `other_count` specifically covers the "other daily-need amenities" tag set listed there.
+
+**FR-1.2.4**: The system SHALL assign equity categories ("High Access", "Medium Access", "Low Access") to each block group based on configurable accessibility score thresholds, and SHALL enforce the following validation workflow before finalising those thresholds for a given city run.
+
+**Threshold bounds** (enforced at pipeline startup, before any scoring):
+- `equity_thresholds.high_access_min` and `equity_thresholds.medium_access_min` SHALL both be in the range [0, 100].
+- `equity_thresholds.high_access_min` SHALL be strictly greater than `equity_thresholds.medium_access_min`.
+- If either constraint is violated the pipeline SHALL raise a `ThresholdConfigError` with a descriptive message and halt before processing.
+- Default values: `high_access_min = 70`, `medium_access_min = 40` (configurable via `pipeline_config.yaml`).
+
+**Mandatory percentile check** (run after scoring, before export):
+- Compute the fraction of block groups in each category (High / Medium / Low).
+- Each category SHALL contain at least **5 %** of block groups (configurable via `pipeline_config.yaml`: `equity_thresholds.min_category_fraction`, default 0.05).
+- If any category falls below the minimum fraction, log a WARNING identifying the under-populated category and its actual fraction. The pipeline SHALL NOT halt — the warning is advisory — but the result SHALL be recorded as `"percentile_check": "WARN"` in the GeoParquet metadata.
+- If all categories meet the minimum, record `"percentile_check": "PASS"`.
+
+**Mandatory ±5-point sensitivity test** (run after scoring, before export):
+- Re-assign equity categories using thresholds shifted by +5 points (`high_access_min + 5`, `medium_access_min + 5`) and again by −5 points (`high_access_min − 5`, `medium_access_min − 5`), clamped to [0, 100].
+- For each shift, compute the fraction of block groups whose category is unchanged relative to the baseline assignment (`sensitivity_stability`).
+- The stability SHALL meet or exceed a configurable pass threshold (`pipeline_config.yaml`: `equity_thresholds.sensitivity_stability_threshold`, default **0.90**, i.e., ≥ 90 % of block groups retain their category under both shifts).
+- If either shift produces stability below the threshold, log a WARNING and record `"sensitivity_check": "WARN"` in the GeoParquet metadata; otherwise record `"sensitivity_check": "PASS"`.
+
+**Metadata recording** (written to GeoParquet file metadata and logged at INFO level):
+```
+equity_thresholds.high_access_min        # final value used
+equity_thresholds.medium_access_min      # final value used
+equity_thresholds.percentile_check       # "PASS" or "WARN"
+equity_thresholds.category_fractions     # {"High": x, "Medium": y, "Low": z}
+equity_thresholds.sensitivity_check      # "PASS" or "WARN"
+equity_thresholds.sensitivity_stability  # {"shift_plus5": s1, "shift_minus5": s2}
+equity_thresholds.validated_at           # ISO-8601 timestamp of the pipeline run
+```
 
 **FR-1.2.5**: The system SHALL transform coordinate reference systems correctly: WGS84 for input/output, local UTM for distance calculations.
 
@@ -32,7 +138,7 @@
 
 **FR-1.3.3**: The system SHALL preserve all geometries in WGS84 (EPSG:4326) coordinate reference system in the output file.
 
-**FR-1.3.4**: The system SHALL include the following fields in the output dataset: geoid, geometry, population, median_income, accessibility_score, grocery_count, healthcare_count, transit_count, total_amenities, equity_category.
+**FR-1.3.4**: The system SHALL include the following fields in the output dataset: geoid, geometry, population, median_income, raw_score, accessibility_score, grocery_count, healthcare_count, transit_count, other_count, total_amenities, equity_category.
 
 **FR-1.3.5**: The system SHALL log processing progress and any errors encountered during pipeline execution.
 
@@ -170,9 +276,10 @@
 - Median household income (B19013_001E)
 
 **DR-3.1.5**: The system SHALL fetch the following amenity types from OpenStreetMap:
-- Grocery stores (amenity=supermarket, shop=supermarket, shop=grocery)
-- Healthcare facilities (amenity=hospital, amenity=clinic, amenity=doctors)
-- Public transit stops (public_transport=stop_position, highway=bus_stop)
+- Grocery stores → `grocery_count` (OSM tags: `amenity=supermarket`, `shop=supermarket`, `shop=grocery`, `shop=convenience`)
+- Healthcare facilities → `healthcare_count` (OSM tags: `amenity=hospital`, `amenity=clinic`, `amenity=doctors`, `amenity=pharmacy`)
+- Public transit stops → `transit_count` (OSM tags: `public_transport=stop_position`, `highway=bus_stop`, `railway=station`, `railway=halt`)
+- Other daily-need amenities → `other_count` (OSM tags: `amenity=school`, `amenity=library`, `amenity=community_centre`, `leisure=park`, `amenity=place_of_worship`). These represent secondary quality-of-life destinations that contribute the 0.10-weighted component of the accessibility score (FR-1.2.3). The tag set is configurable and may be extended without changing the scoring formula.
 
 ### 3.2 Output Data
 
@@ -181,11 +288,13 @@
 - geometry: Polygon (WGS84)
 - population: integer
 - median_income: float
-- accessibility_score: float (0-100)
+- raw_score: float — the capped weighted sum prior to normalization (`0.35*min(grocery,5) + 0.30*min(healthcare,3) + 0.25*min(transit,10) + 0.10*min(other,5)`); used for monotonicity validation and audit
+- accessibility_score: float (0-100) — `normalize(raw_score)` across the city-wide distribution
 - grocery_count: integer
 - healthcare_count: integer
 - transit_count: integer
-- total_amenities: integer
+- other_count: integer
+- total_amenities: integer (display/filter field; validated to equal `grocery_count + healthcare_count + transit_count + other_count`; does **not** drive score monotonicity — use `raw_score` for that)
 - equity_category: string
 
 **DR-3.2.2**: The system SHALL ensure all geometries in the output file are valid (no self-intersections, no null geometries).
@@ -198,7 +307,7 @@
 
 **DR-3.3.2**: The system SHALL validate that all accessibility scores are in the range [0, 100].
 
-**DR-3.3.3**: The system SHALL validate that total_amenities equals the sum of individual amenity counts.
+**DR-3.3.3**: The system SHALL validate that `total_amenities` equals the sum of `grocery_count + healthcare_count + transit_count + other_count` for every record. Note: `total_amenities` is a display/filter field; score monotonicity is validated over `raw_score` (the capped weighted sum), not over `total_amenities`.
 
 **DR-3.3.4**: The system SHALL validate that equity categories are correctly assigned based on accessibility score thresholds.
 
@@ -311,7 +420,7 @@
 
 **AC-6.3.1**: All unit tests pass with at least 80% code coverage.
 
-**AC-6.3.2**: All property-based tests pass (spatial integrity, score monotonicity, CRS consistency).
+**AC-6.3.2**: All property-based tests pass, including: spatial integrity (area-overlap threshold correctly gates access), score monotonicity (higher `raw_score` implies higher `accessibility_score`), and CRS consistency (all output geometries in WGS84).
 
 **AC-6.3.3**: The codebase passes Black formatting and Ruff linting checks.
 
