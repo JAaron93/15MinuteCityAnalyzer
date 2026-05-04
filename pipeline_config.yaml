@@ -1,0 +1,44 @@
+# 15-Minute City & Transit Equity Analyzer Configuration
+
+# Accessibility Analysis Parameters
+walk_speed_kmh: 4.5
+spatial_join:
+  min_overlap_fraction: 0.10
+
+# Equity Scoring Parameters
+scoring_weights:
+  grocery: 0.35
+  healthcare: 0.30
+  transit: 0.25
+  other: 0.10
+
+scoring_caps:
+  grocery: 5
+  healthcare: 3
+  transit: 10
+  other: 5
+
+# Equity Thresholds and Validation
+equity_thresholds:
+  high_access_min: 70
+  medium_access_min: 40
+  min_category_fraction: 0.05
+  sensitivity_stability_threshold: 0.90
+
+# API and Download Limits
+bbox_limits:
+  max_edge_degrees: 1.0
+  max_area_sq_degrees: 0.5
+  enable_tiling: false
+  tiling:
+    failure_threshold: 0.20
+    parallel: false
+
+# Retry Policy for API Calls
+retry_policy:
+  attempts: 3
+  per_request_timeout_s: 10
+  max_total_duration_s: 60
+  base_delay_ms: 500
+  multiplier: 2.0
+  jitter_factor: 0.20

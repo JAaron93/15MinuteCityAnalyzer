@@ -1,33 +1,33 @@
 # Implementation Tasks: 15-Minute City & Transit Equity Analyzer
 
-## 1. Project Setup and Configuration
+## [x] 1. Project Setup and Configuration
 
-- [ ] 1.1 Create project directory structure
-  - [ ] 1.1.1 Create `data/raw` and `data/processed` directories
-  - [ ] 1.1.2 Create `src/pipeline` directory for pipeline modules
-  - [ ] 1.1.3 Create `src/dashboard` directory for Streamlit app modules
-  - [ ] 1.1.4 Create `tests` directory with subdirectories for unit and integration tests
-  - [ ] 1.1.5 Create `.streamlit` directory for Streamlit configuration
+- [x] 1.1 Create project directory structure
+  - [x] 1.1.1 Create `data/raw` and `data/processed` directories
+  - [x] 1.1.2 Create `src/pipeline` directory for pipeline modules
+  - [x] 1.1.3 Create `src/dashboard` directory for Streamlit app modules
+  - [x] 1.1.4 Create `tests` directory with subdirectories for unit and integration tests
+  - [x] 1.1.5 Create `.streamlit` directory for Streamlit configuration
 
-- [ ] 1.2 Configure development environment
-  - [ ] 1.2.1 Update `requirements.txt` with all necessary dependencies (geopandas, osmnx, cenpy, marimo, streamlit, streamlit-folium, folium, pyarrow, networkx, rtree, shapely)
-  - [ ] 1.2.2 Add development dependencies (pytest, pytest-cov, hypothesis, black, mypy, ruff)
-  - [ ] 1.2.3 Create `.env.example` file for Census API key (optional)
-  - [ ] 1.2.4 Create `.gitignore` file to exclude venv, .env, __pycache__, .mypy_cache, data/raw/*
-  - [ ] 1.2.5 Create `pyproject.toml` for Black, Ruff, and mypy configuration
-  - [ ] 1.2.6 Create `pipeline_config.yaml` with all configurable parameters: `walk_speed_kmh`, `spatial_join.min_overlap_fraction`, `equity_thresholds.high_access_min`, `equity_thresholds.medium_access_min`, `equity_thresholds.min_category_fraction` (default 0.05), `equity_thresholds.sensitivity_stability_threshold` (default 0.90), `scoring_weights` (grocery/healthcare/transit/other), `scoring_caps` (grocery/healthcare/transit/other), `bbox_limits` (max_edge_degrees, max_area_sq_degrees, enable_tiling, `tiling.failure_threshold`, `tiling.parallel`), `retry_policy` (attempts, per_request_timeout_s, max_total_duration_s, base_delay_ms, multiplier, jitter_factor)
+- [x] 1.2 Configure development environment
+  - [x] 1.2.1 Update `requirements.txt` with all necessary dependencies (geopandas, osmnx, cenpy, marimo, streamlit, streamlit-folium, folium, pyarrow, networkx, rtree, shapely)
+  - [x] 1.2.2 Add development dependencies (pytest, pytest-cov, hypothesis, black, mypy, ruff)
+  - [x] 1.2.3 Create `.env.example` file for Census API key (optional)
+  - [x] 1.2.4 Create `.gitignore` file to exclude venv, .env, __pycache__, .mypy_cache, data/raw/*
+  - [x] 1.2.5 Create `pyproject.toml` for Black, Ruff, and mypy configuration
+  - [x] 1.2.6 Create `pipeline_config.yaml` with all configurable parameters: `walk_speed_kmh`, `spatial_join.min_overlap_fraction`, `equity_thresholds.high_access_min`, `equity_thresholds.medium_access_min`, `equity_thresholds.min_category_fraction` (default 0.05), `equity_thresholds.sensitivity_stability_threshold` (default 0.90), `scoring_weights` (grocery/healthcare/transit/other), `scoring_caps` (grocery/healthcare/transit/other), `bbox_limits` (max_edge_degrees, max_area_sq_degrees, enable_tiling, `tiling.failure_threshold`, `tiling.parallel`), `retry_policy` (attempts, per_request_timeout_s, max_total_duration_s, base_delay_ms, multiplier, jitter_factor)
 
-- [ ] 1.3 Create Streamlit configuration
-  - [ ] 1.3.1 Create `.streamlit/config.toml` with theme settings (primaryColor, backgroundColor, secondaryBackgroundColor, textColor, font)
-  - [ ] 1.3.2 Configure server settings (maxUploadSize, enableCORS, enableXsrfProtection)
+- [x] 1.3 Create Streamlit configuration
+  - [x] 1.3.1 Create `.streamlit/config.toml` with theme settings (primaryColor, backgroundColor, secondaryBackgroundColor, textColor, font)
+  - [x] 1.3.2 Configure server settings (maxUploadSize, enableCORS, enableXsrfProtection)
 
-- [ ] 1.4 Update project documentation
-  - [ ] 1.4.1 Update README.md with project overview, installation instructions, and usage guide
-  - [ ] 1.4.2 Add section on running the Marimo pipeline
-  - [ ] 1.4.3 Add section on launching the Streamlit dashboard
-  - [ ] 1.4.4 Add section on deploying to Streamlit Cloud
-  - [ ] 1.4.5 Add data sources and attribution section
-  - [ ] 1.4.6 Add license information and compliance notes
+- [x] 1.4 Update project documentation
+  - [x] 1.4.1 Update README.md with project overview, installation instructions, and usage guide
+  - [x] 1.4.2 Add section on running the Marimo pipeline
+  - [x] 1.4.3 Add section on launching the Streamlit dashboard
+  - [x] 1.4.4 Add section on deploying to Streamlit Cloud
+  - [x] 1.4.5 Add data sources and attribution section
+  - [x] 1.4.6 Add license information and compliance notes
 
 ## 2. Data Acquisition Module
 
