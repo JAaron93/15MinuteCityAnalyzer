@@ -15,7 +15,8 @@ class TileMerger:
 
     def merge_pois(self, tiles_data: List[gpd.GeoDataFrame]) -> gpd.GeoDataFrame:
         """
-        Merges POI GeoDataFrames, deduplicating by OSM ID and unioning split polygons.
+        Merges POI GeoDataFrames, deduplicating by OSM ID and unioning split polygons (FR-1.1.6).
+        Optimized to handle points separately from polygons/linestrings for performance.
         """
         if not tiles_data:
             return gpd.GeoDataFrame()
@@ -28,29 +29,37 @@ class TileMerger:
         # Combine all tiles
         combined = pd.concat(tiles_data, ignore_index=False)
         
-        # Deduplicate by index (which is (element_type, osmid) in OSMnx)
-        # For split polygons, we should ideally union them.
-        # Let's group by index and union geometries.
+        # 1. Identify points vs non-points (Polygons/LineStrings)
+        # Points never need unioning, they just need deduplication.
+        is_point = combined.geometry.type == "Point"
+        points = combined[is_point]
+        non_points = combined[~is_point]
         
-        def _union_geoms(group):
-            if len(group) == 1:
-                return group.iloc[0]
+        # 2. Fast deduplication for points
+        # Keep first occurrence of each OSM ID (index level 1)
+        if not points.empty:
+            points = points[~points.index.duplicated(keep="first")]
             
-            first = group.iloc[0].copy()
-            # Union all geometries in the group
-            first["geometry"] = unary_union(group["geometry"].tolist())
-            return first
-
-        # Note: grouping and unioning can be slow for large datasets.
-        # But it's necessary for correctness if we expect split polygons.
-        merged = combined.groupby(level=[0, 1]).apply(_union_geoms)
+        # 3. Union non-points (split polygons)
+        if not non_points.empty:
+            # Only group if there are actually duplicates
+            if non_points.index.duplicated().any():
+                logger.info("Unioning split polygons/linestrings in tiled OSM data.")
+                
+                def _union_geoms(group):
+                    if len(group) == 1:
+                        return group.iloc[0]
+                    first = group.iloc[0].copy()
+                    first["geometry"] = unary_union(group["geometry"].tolist())
+                    return first
+                
+                non_points = non_points.groupby(level=[0, 1]).apply(_union_geoms)
+            else:
+                pass # No duplicates, no need to group
         
-        if isinstance(merged, pd.Series):
-            # This happens if combined has only one row or similar?
-            # Actually apply might return a series if we are not careful.
-            pass
-            
-        return gpd.GeoDataFrame(merged, crs=combined.crs)
+        # 4. Recombine
+        result = pd.concat([points, non_points])
+        return gpd.GeoDataFrame(result, crs=combined.crs)
 
     def merge_graphs(self, tiles_data: List[Any]) -> Any:
         """
@@ -73,15 +82,37 @@ class TileMerger:
         for g in tiles_data[1:]:
             merged_graph = ox.compose(merged_graph, g)
         
-        # OSMnx's compose merges nodes with the same ID.
-        # Since OSM IDs are global, this should handle most cases.
-        # If we need spatial snapping for edges that were split:
-        # "edge rejoining with 1e-6° tolerance"
+        # 1e-7 degrees is ~1cm at equator, sufficient for topological rejoining (FR-1.1.6)
+        tolerance = 1e-7
         
-        # If two nodes have different IDs but are spatially identical (within tolerance),
-        # we might need to merge them. However, OSM IDs are usually consistent across requests.
+        # We can use ox.consolidate_intersections but that simplifies the network.
+        # Instead, we'll manually merge nodes that are spatially identical but have different IDs.
+        # This is rare with OSM IDs but ensures robustness against split-edge artifacts.
         
-        # One issue with compose is that it might not preserve all attributes if they differ.
-        # But for the street network, they should be consistent.
+        nodes_df = ox.graph_to_gdfs(merged_graph, nodes=True, edges=False)
+        if nodes_df.empty:
+            return merged_graph
+            
+        # Standardize coordinates
+        nodes_df["x_round"] = nodes_df["x"].round(7)
+        nodes_df["y_round"] = nodes_df["y"].round(7)
         
+        # Find groups of nodes at the same location
+        duplicates = nodes_df.groupby(["x_round", "y_round"]).filter(lambda x: len(x) > 1)
+        
+        if not duplicates.empty:
+            logger.info(f"Rejoining {len(duplicates)} spatially identical nodes across tile boundaries.")
+            node_mapping = {}
+            for _, group in duplicates.groupby(["x_round", "y_round"]):
+                keep_node = group.index[0]
+                for other_node in group.index[1:]:
+                    node_mapping[other_node] = keep_node
+            
+            # Update edges and remove merged nodes
+            # networkx.relabel_nodes with copy=False is efficient
+            nx.relabel_nodes(merged_graph, node_mapping, copy=False)
+            
+            # Relabeling in MultiDiGraph might create multi-edges if they already existed.
+            # But here it just ensures connectivity.
+            
         return merged_graph

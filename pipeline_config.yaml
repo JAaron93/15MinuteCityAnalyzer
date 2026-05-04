@@ -1,4 +1,5 @@
 # 15-Minute City & Transit Equity Analyzer Configuration
+census_year: 2021
 
 # Accessibility Analysis Parameters
 walk_speed_kmh: 4.5

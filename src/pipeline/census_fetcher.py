@@ -22,6 +22,7 @@ class CensusFetcher:
         
         self.retry_policy = self.config.get("retry_policy", {})
         self.api_key = os.getenv("CENSUS_API_KEY")
+        self.census_year = self.config.get("census_year", 2021)
         
         # Demographic variables from DR-3.1.4
         self.variables = {
@@ -80,6 +81,8 @@ class CensusFetcher:
         
         # Filter to only block groups that actually intersect the bbox
         bbox_geom = box(*bbox)
+        # Ensure final_df is in EPSG:4326 for intersection with bbox_geom
+        DataValidator.validate_crs(final_df, "EPSG:4326")
         final_df = final_df[final_df.intersects(bbox_geom)]
         logger.info(f"Rows after spatial filter to bbox: {len(final_df)}")
         
@@ -113,19 +116,32 @@ class CensusFetcher:
             # and then fetch their boundaries to intersect.
             # Alternatively, use a lighter service if available.
             
-            # For now, let's use a more direct approach: fetch ALL block groups for the state
-            # and then see which counties they belong to within the bbox.
-            # But the requirement says "derive county FIPS ... BEFORE issuing any Census queries".
-            
-            # Let's try to get county boundaries from a public source or cenpy more efficiently.
-            # cenpy.products.ACS().from_state(state, level="county")
-            acs = cenpy.products.ACS(2021)
-            counties_gdf = acs.from_state(state, level="county")
-            
+            # Optimization (High): Use from_polygon to fetch only counties intersecting the bbox
+            # instead of fetching all counties for the entire state.
+            acs = cenpy.products.ACS(self.census_year)
             bbox_geom = box(*bbox)
-            intersecting_counties = counties_gdf[counties_gdf.intersects(bbox_geom)]
             
-            return sorted(intersecting_counties["county"].unique().tolist())
+            # Fetch counties intersecting the bbox
+            # level='county' returns county features touching the polygon
+            counties_gdf = acs.from_polygon(bbox_geom, level="county")
+            
+            if counties_gdf.empty:
+                logger.warning(f"No counties found intersecting the bbox.")
+                return []
+
+            # Filter to the specified state if necessary
+            # cenpy returns 'state' column with FIPS code
+            state_fips = cenpy.explorer.fips_table(state).iloc[0]["state"]
+            if "state" in counties_gdf.columns:
+                counties_gdf = counties_gdf[counties_gdf["state"] == state_fips]
+            
+            # Find the county column (case-insensitive)
+            county_col = next((col for col in counties_gdf.columns if col.lower() == "county"), None)
+            if not county_col:
+                logger.error(f"Could not find county column in Census response. Columns: {counties_gdf.columns}")
+                return []
+                
+            return sorted(counties_gdf[county_col].unique().tolist())
             
         except Exception as e:
             logger.error(f"Error identifying counties: {e}")
@@ -137,7 +153,7 @@ class CensusFetcher:
         """
         @retry_with_policy(self.retry_policy)
         def _execute_query():
-            acs = cenpy.products.ACS(2021)
+            acs = cenpy.products.ACS(self.census_year)
             # Fetch block groups for the county
             # cenpy handles the API calls and geometry merging
             df = acs.from_county(
@@ -156,10 +172,14 @@ class CensusFetcher:
         df = df.rename(columns=self.variables)
         
         # Ensure geoid is 12 characters
-        # cenpy usually returns a 'GEOID' column or similar
-        # We need to standardize it.
         if "GEOID" in df.columns:
             df = df.rename(columns={"GEOID": "geoid"})
+        
+        # Ensure state and county columns exist (needed for conflict logging)
+        if "state" not in df.columns:
+            df["state"] = state
+        if "county" not in df.columns:
+            df["county"] = county
         
         # Keep only required columns
         required_cols = ["geoid", "geometry", "population", "median_income", "state", "county"]

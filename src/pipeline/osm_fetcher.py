@@ -172,8 +172,12 @@ class OSMFetcher:
                     else:
                         data = self._fetch_network_batch(tile_bbox)
                     
-                    if data:
-                        tiles_data.append(data)
+                    if mode == "amenities":
+                        if not data.empty:
+                            tiles_data.append(data)
+                    else:
+                        if data is not None:
+                            tiles_data.append(data)
                 except Exception as e:
                     logger.warning(f"Failed to fetch tile ({i}, {j}): {e}")
                     skipped_count += 1
