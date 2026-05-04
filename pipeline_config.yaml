@@ -28,7 +28,7 @@ equity_thresholds:
 # API and Download Limits
 bbox_limits:
   max_edge_degrees: 1.0
-  max_area_sq_degrees: 0.5
+  max_area_sq_degrees: 1.0
   enable_tiling: false
   tiling:
     failure_threshold: 0.20

@@ -29,37 +29,37 @@
   - [x] 1.4.5 Add data sources and attribution section
   - [x] 1.4.6 Add license information and compliance notes
 
-## 2. Data Acquisition Module
+## [x] 2. Data Acquisition Module
 
 - [ ] 2.1 Implement Census data fetching
-  - [ ] 2.1.1 Create `src/pipeline/census_fetcher.py` module
-  - [ ] 2.1.2 Implement `fetch_block_groups()` function to fetch Census block group geometries
-  - [ ] 2.1.3 Implement `fetch_demographics()` function to fetch population and median income data
-  - [ ] 2.1.4 Implement retry logic per FR-1.1.4: enforce 10 s per-request timeout, 60 s hard-cap on total elapsed time (including in-flight requests), backoff formula `500ms × 2.0^attempt` with ±20 % jitter; non-retryable on HTTP 400/401/403/404 (raise immediately); retryable on 5xx; retryable on 429 with `Retry-After` header support; log each attempt at WARNING level with status code
-  - [ ] 2.1.5 Add error handling for invalid city names or missing data
-  - [ ] 2.1.6 Add logging for API requests and responses
-  - [ ] 2.1.7 Validate fetched data (non-null geometries, valid FIPS codes)
-  - [ ] 2.1.8 Implement multi-county Census queries (FR-1.1.7): (a) derive county FIPS codes by spatially intersecting the bounding box against county polygons (TIGER/Line or bundled GeoJSON), log identified counties at INFO level; (b) issue per-county `for=block group:* in state:{state} in county:{county}` queries; (c) deduplicate by `geoid` keeping first-occurrence (lowest county FIPS), log WARNING for any conflicting attribute values across duplicates; (d) log WARNING for missing counties and continue; (e) raise `CensusDataUnavailableError` with full `(state_fips, county_fips)` list if all counties return no data
+  - [x] 2.1.1 Create `src/pipeline/census_fetcher.py` module
+  - [x] 2.1.2 Implement `fetch_block_groups()` function to fetch Census block group geometries
+  - [x] 2.1.3 Implement `fetch_demographics()` function to fetch population and median income data
+  - [x] 2.1.4 Implement retry logic per FR-1.1.4: enforce 10 s per-request timeout, 60 s hard-cap on total elapsed time (including in-flight requests), backoff formula `500ms × 2.0^attempt` with ±20 % jitter; non-retryable on HTTP 400/401/403/404 (raise immediately); retryable on 5xx; retryable on 429 with `Retry-After` header support; log each attempt at WARNING level with status code
+  - [x] 2.1.5 Add error handling for invalid city names or missing data
+  - [x] 2.1.6 Add logging for API requests and responses
+  - [x] 2.1.7 Validate fetched data (non-null geometries, valid FIPS codes)
+  - [x] 2.1.8 Implement multi-county Census queries (FR-1.1.7): (a) derive county FIPS codes by spatially intersecting the bounding box against county polygons (TIGER/Line or bundled GeoJSON), log identified counties at INFO level; (b) issue per-county `for=block group:* in state:{state} in county:{county}` queries; (c) deduplicate by `geoid` keeping first-occurrence (lowest county FIPS), log WARNING for any conflicting attribute values across duplicates; (d) log WARNING for missing counties and continue; (e) raise `CensusDataUnavailableError` with full `(state_fips, county_fips)` list if all counties return no data
 
 - [ ] 2.2 Implement OpenStreetMap data fetching
-  - [ ] 2.2.1 Create `src/pipeline/osm_fetcher.py` module
-  - [ ] 2.2.1b Create `src/pipeline/tile_merger.py` module implementing the tile-merge routine: point dedup, polygon union for split geometries, and network edge rejoining with topological reconnection
-  - [ ] 2.2.2 Implement `fetch_amenities()` function to download all four POI types (grocery, healthcare, transit, other) using the OSM tag sets defined in DR-3.1.5; tag each feature with its `amenity_type` before returning
-  - [ ] 2.2.3 Implement `fetch_street_network()` function to download walkable street network
-  - [ ] 2.2.4 Add bounding box calculation from city name or explicit coordinates
-  - [ ] 2.2.5 Implement bounding box validation (FR-1.1.5): check max edge ≤ 1.0° and area ≤ 0.5 sq° (configurable via `pipeline_config.yaml`); raise `BoundingBoxTooLargeError` with descriptive message if exceeded
-  - [ ] 2.2.6 Implement optional bbox tiling (FR-1.1.6): when `bbox_limits.enable_tiling=true`, subdivide into equal nx×ny grid tiles (smallest grid where each tile ≤ max edge/area limits), assign row-major tile IDs; download per tile; merge using `src/pipeline/tile_merger.py` (point/POI dedup by `osm_id` first-occurrence, polygon union for split geometries, edge rejoining with 1e-6° tolerance for network topology); apply failure threshold (`bbox_limits.tiling.failure_threshold`, default 0.20) — raise `TilingFailureError` if skip fraction exceeds threshold; write skipped tile IDs to GeoParquet metadata under `skipped_tiles`
-  - [ ] 2.2.7 Implement request throttling (1 request/second for Overpass API)
-  - [ ] 2.2.8 Apply same retry policy as 2.1.4 (FR-1.1.4) to all OSMnx/Overpass requests: 60 s hard cap including in-flight requests, non-retryable on 400/401/403/404, retryable on 5xx, 429 with Retry-After support
-  - [ ] 2.2.9 Add error handling for network download failures
-  - [ ] 2.2.10 Add logging for OSM queries and data statistics
+  - [x] 2.2.1 Create `src/pipeline/osm_fetcher.py` module
+  - [x] 2.2.1b Create `src/pipeline/tile_merger.py` module implementing the tile-merge routine: point dedup, polygon union for split geometries, and network edge rejoining with topological reconnection
+  - [x] 2.2.2 Implement `fetch_amenities()` function to download all four POI types (grocery, healthcare, transit, other) using the OSM tag sets defined in DR-3.1.5; tag each feature with its `amenity_type` before returning
+  - [x] 2.2.3 Implement `fetch_street_network()` function to download walkable street network
+  - [x] 2.2.4 Add bounding box calculation from city name or explicit coordinates
+  - [x] 2.2.5 Implement bounding box validation (FR-1.1.5): check max edge ≤ 1.0° and area ≤ 1.0 sq° (configurable via `pipeline_config.yaml`); raise `BoundingBoxTooLargeError` with descriptive message if exceeded
+  - [x] 2.2.6 Implement optional bbox tiling (FR-1.1.6): when `bbox_limits.enable_tiling=true`, subdivide into equal nx×ny grid tiles (smallest grid where each tile ≤ max edge/area limits), assign row-major tile IDs; download per tile; merge using `src/pipeline/tile_merger.py` (point/POI dedup by `osm_id` first-occurrence, polygon union for split geometries, edge rejoining with 1e-6° tolerance for network topology); apply failure threshold (`bbox_limits.tiling.failure_threshold`, default 0.20) — raise `TilingFailureError` if skip fraction exceeds threshold; write skipped tile IDs to GeoParquet metadata under `skipped_tiles`
+  - [x] 2.2.7 Implement request throttling (1 request/second for Overpass API)
+  - [x] 2.2.8 Apply same retry policy as 2.1.4 (FR-1.1.4) to all OSMnx/Overpass requests: 60 s hard cap including in-flight requests, non-retryable on 400/401/403/404, retryable on 5xx, 429 with Retry-After support
+  - [x] 2.2.9 Add error handling for network download failures
+  - [x] 2.2.10 Add logging for OSM queries and data statistics
 
-- [ ] 2.3 Create data validation utilities
-  - [ ] 2.3.1 Create `src/pipeline/validators.py` module
-  - [ ] 2.3.2 Implement `validate_geometries()` function to check for null or invalid geometries
-  - [ ] 2.3.3 Implement `validate_crs()` function to verify coordinate reference system
-  - [ ] 2.3.4 Implement `validate_demographics()` function to check for missing or invalid demographic data
-  - [ ] 2.3.5 Implement `repair_geometries()` function using buffer(0) technique
+- [x] 2.3 Create data validation utilities
+  - [x] 2.3.1 Create `src/pipeline/data_validator.py` module
+  - [x] 2.3.2 Implement `validate_geometries()` function to check for null or invalid geometries
+  - [x] 2.3.3 Implement `validate_crs()` function to verify coordinate reference system
+  - [x] 2.3.4 Implement `validate_demographics()` function to check for missing or invalid demographic data
+  - [x] 2.3.5 Implement `repair_geometries()` function using buffer(0) technique
 
 ## 3. Spatial Analysis Module
 

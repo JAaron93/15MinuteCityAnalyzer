@@ -6,6 +6,7 @@ textColor = "#212121"
 font = "sans serif"
 
 [server]
+# Set to 50MB to match CR-5.2.2 and NFR-2.1.5 requirements for GeoParquet files.
 maxUploadSize = 50
 enableCORS = false
 enableXsrfProtection = true

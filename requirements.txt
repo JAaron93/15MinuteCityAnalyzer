@@ -1,38 +1,40 @@
 # Data manipulation and analysis
-numpy>=1.24.0
-pandas>=2.0.0
-pyarrow>=12.0.0
+numpy~=2.4.0
+pandas~=3.0.0
+pyarrow~=23.0.0
 
 # Visualization
-matplotlib>=3.7.0
-folium>=0.15.0
-streamlit>=1.28.0
-streamlit-folium>=0.15.0
-plotly>=5.17.0
+matplotlib~=3.7.0
+folium~=0.15.0
+streamlit~=1.56.0
+streamlit-folium~=0.15.0
+plotly~=6.7.0
 
 # Geospatial analysis
-geopandas>=0.13.0
-shapely>=2.0.0
-osmnx>=1.6.0
-cenpy>=1.0.1
-rtree>=1.0.0
+geopandas~=1.1.0
+shapely~=2.1.0
+osmnx~=2.1.0
+cenpy~=1.0.1
+rtree~=1.0.0
 
 # Network analysis
-networkx>=3.1
+networkx~=3.6.0
 
 # Notebook environment
-marimo>=0.1.0
+marimo~=0.23.0
 
 # Utilities
-requests>=2.31.0
-tqdm>=4.65.0
-python-dotenv>=1.0.0
-typing-extensions>=4.7.0
+requests~=2.33.0
+tqdm~=4.65.0
+python-dotenv~=1.2.0
+typing-extensions~=4.15.0
 
 # Development
-pytest>=7.4.0
-pytest-cov>=4.1.0
-hypothesis>=6.88.0
-black>=23.9.0
-mypy>=1.5.0
-ruff>=0.0.290
+pytest~=9.0.0
+pytest-cov~=4.1.0
+responses~=0.23.0
+pytest-mock~=3.11.0
+hypothesis~=6.88.0
+black~=23.9.0
+mypy~=1.5.0
+ruff~=0.0.290

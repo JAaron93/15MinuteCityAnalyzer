@@ -29,7 +29,7 @@
 **FR-1.1.5** *(Bounding Box Validation — extends FR-1.1.2 and FR-1.1.3)*: Before issuing any OSMnx download (POIs or street network), the system SHALL validate the derived or user-supplied bounding box against the following limits, configurable via `pipeline_config.yaml` (`bbox_limits`):
 
 - Maximum edge length: **1.0 decimal degrees** (~111 km) on any single side
-- Maximum area: **0.5 square decimal degrees** (~6,000 km²)
+- Maximum area: **1.0 square decimal degrees** (~12,000 km²)
 
 If the bounding box exceeds either limit the system SHALL:
 1. Log a descriptive error identifying which limit was exceeded and by how much
