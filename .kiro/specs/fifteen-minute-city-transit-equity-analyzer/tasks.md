@@ -63,37 +63,37 @@
 
 ## 3. Spatial Analysis Module
 
-- [ ] 3.1 Implement CRS transformation utilities
-  - [ ] 3.1.1 Create `src/pipeline/crs_utils.py` module
-  - [ ] 3.1.2 Implement `determine_utm_zone()` function: compute the centroid of the analysis bounding box in WGS84 and call `geopandas.estimate_utm_crs(latitude, longitude)` to derive the local UTM CRS deterministically; return the CRS for use by all spatial operations in the pipeline run
-  - [ ] 3.1.3 Implement `transform_to_utm()` function to convert WGS84 to local UTM
-  - [ ] 3.1.4 Implement `transform_to_wgs84()` function to convert UTM back to WGS84
-  - [ ] 3.1.5 Add error handling for CRS transformation failures
-  - [ ] 3.1.6 Add validation to ensure output is always in WGS84
+- [x] 3.1 Implement CRS transformation utilities
+  - [x] 3.1.1 Create `src/pipeline/crs_utils.py` module
+  - [x] 3.1.2 Implement `determine_utm_zone()` function: compute the centroid of the analysis bounding box in WGS84 and call `geopandas.estimate_utm_crs(latitude, longitude)` to derive the local UTM CRS deterministically; return the CRS for use by all spatial operations in the pipeline run
+  - [x] 3.1.3 Implement `transform_to_utm()` function to convert WGS84 to local UTM
+  - [x] 3.1.4 Implement `transform_to_wgs84()` function to convert UTM back to WGS84
+  - [x] 3.1.5 Add error handling for CRS transformation failures
+  - [x] 3.1.6 Add validation to ensure output is always in WGS84
 
-- [ ] 3.2 Implement isochrone generation
-  - [ ] 3.2.1 Create `src/pipeline/isochrone.py` module
-  - [ ] 3.2.2 Implement `calculate_isochrone()` function to generate 15-minute walking buffer for a single amenity
-  - [ ] 3.2.3 Read walking speed from `pipeline_config.yaml` (`walk_speed_kmh`, default 4.5 km/h per design §Isochrone Generation Algorithm); do not hard-code the value
-  - [ ] 3.2.4 Implement network analysis using NetworkX shortest path algorithms
-  - [ ] 3.2.5 Generate convex hull or alpha shape around reachable nodes
-  - [ ] 3.2.6 Implement `calculate_all_isochrones()` function to process all amenities
-  - [ ] 3.2.7 Add parallel processing support using multiprocessing for performance
-  - [ ] 3.2.8 Add progress logging for isochrone calculations
+- [x] 3.2 Implement isochrone generation
+  - [x] 3.2.1 Create `src/pipeline/isochrone.py` module
+  - [x] 3.2.2 Implement `calculate_isochrone()` function to generate 15-minute walking buffer for a single amenity
+  - [x] 3.2.3 Read walking speed from `pipeline_config.yaml` (`walk_speed_kmh`, default 4.5 km/h per design §Isochrone Generation Algorithm); do not hard-code the value
+  - [x] 3.2.4 Implement network analysis using NetworkX shortest path algorithms
+  - [x] 3.2.5 Generate convex hull or alpha shape around reachable nodes
+  - [x] 3.2.6 Implement `calculate_all_isochrones()` function to process all amenities
+  - [x] 3.2.7 Add parallel processing support using multiprocessing for performance
+  - [x] 3.2.8 Add progress logging for isochrone calculations
 
-- [ ] 3.3 Implement spatial join and scoring
-  - [ ] 3.3.1 Create `src/pipeline/scoring.py` module
-  - [ ] 3.3.2 Implement `spatial_join_amenities()` function: after the geometric join, filter results to only rows where `overlap_area / block_area ≥ MIN_OVERLAP_FRACTION` (read from `pipeline_config.yaml`, default 0.10); all area calculations in local UTM projection
-  - [ ] 3.3.3 Implement `count_amenities_by_type()` function to count accessible amenities per block group across all four types: grocery, healthcare, transit, other
-  - [ ] 3.3.4 Implement `calculate_accessibility_score()`: compute `raw_score = w_g*min(grocery,c_g) + w_h*min(healthcare,c_h) + w_t*min(transit,c_t) + w_o*min(other,c_o)` (weights from `scoring_weights`, caps from `scoring_caps` in `pipeline_config.yaml`); store `raw_score` as a separate column in the output GeoDataFrame; then compute `accessibility_score = normalize(raw_score)`
-  - [ ] 3.3.5 Implement score normalization: `100 × (raw − city_min) / (city_max − city_min)`; when `city_max == city_min`, assign `accessibility_score = 50` to all records and log a WARNING about the degenerate distribution
-  - [ ] 3.3.6 Implement `assign_equity_category()`: (a) at pipeline startup validate `high_access_min > medium_access_min` and both in [0,100] — raise `ThresholdConfigError` if violated; (b) after scoring run mandatory percentile check — each category ≥ `min_category_fraction` (default 5%), log WARNING and record `"percentile_check": "WARN"/"PASS"` in metadata; (c) run mandatory ±5-point sensitivity test — compute stability for +5 and −5 shifts, compare against `sensitivity_stability_threshold` (default 90%), log WARNING and record `"sensitivity_check": "WARN"/"PASS"` in metadata; (d) write all seven `equity_thresholds.*` metadata fields to GeoParquet (thresholds, percentile_check, category_fractions, sensitivity_check, sensitivity_stability, validated_at timestamp) and log at INFO level
-  - [ ] 3.3.7 Add validation to ensure `total_amenities` equals `grocery_count + healthcare_count + transit_count + other_count` for every record
+- [x] 3.3 Implement spatial join and scoring
+  - [x] 3.3.1 Create `src/pipeline/scoring.py` module
+  - [x] 3.3.2 Implement `spatial_join_amenities()` function: after the geometric join, filter results to only rows where `overlap_area / block_area ≥ MIN_OVERLAP_FRACTION` (read from `pipeline_config.yaml`, default 0.10); all area calculations in local UTM projection
+  - [x] 3.3.3 Implement `count_amenities_by_type()` function to count accessible amenities per block group across all four types: grocery, healthcare, transit, other
+  - [x] 3.3.4 Implement `calculate_accessibility_score()`: compute `raw_score = w_g*min(grocery,c_g) + w_h*min(healthcare,c_h) + w_t*min(transit,c_t) + w_o*min(other,c_o)` (weights from `scoring_weights`, caps from `scoring_caps` in `pipeline_config.yaml`); store `raw_score` as a separate column in the output GeoDataFrame; then compute `accessibility_score = normalize(raw_score)`
+  - [x] 3.3.5 Implement score normalization: `100 × (raw − city_min) / (city_max − city_min)`; when `city_max == city_min`, assign `accessibility_score = 50` to all records and log a WARNING about the degenerate distribution
+  - [x] 3.3.6 Implement `assign_equity_category()`: (a) at pipeline startup validate `high_access_min > medium_access_min` and both in [0,100] — raise `ThresholdConfigError` if violated; (b) after scoring run mandatory percentile check — each category ≥ `min_category_fraction` (default 5%), log WARNING and record `"percentile_check": "WARN"/"PASS"` in metadata; (c) run mandatory ±5-point sensitivity test — compute stability for +5 and −5 shifts, compare against `sensitivity_stability_threshold` (default 90%), log WARNING and record `"sensitivity_check": "WARN"/"PASS"` in metadata; (d) write all seven `equity_thresholds.*` metadata fields to GeoParquet (thresholds, percentile_check, category_fractions, sensitivity_check, sensitivity_stability, validated_at timestamp) and log at INFO level
+  - [x] 3.3.7 Add validation to ensure `total_amenities` equals `grocery_count + healthcare_count + transit_count + other_count` for every record
 
-- [ ] 3.4 Implement spatial indexing for performance
-  - [ ] 3.4.1 Add R-tree spatial index creation for block groups
-  - [ ] 3.4.2 Add R-tree spatial index creation for isochrones
-  - [ ] 3.4.3 Use spatial index for faster spatial join operations
+- [x] 3.4 Implement spatial indexing for performance
+  - [x] 3.4.1 Add R-tree spatial index creation for block groups
+  - [x] 3.4.2 Add R-tree spatial index creation for isochrones
+  - [x] 3.4.3 Use spatial index for faster spatial join operations
 
 ## 4. Data Processing Pipeline (Marimo Notebook)
 
