@@ -36,26 +36,46 @@ class TileMerger:
         non_points = combined[~is_point]
         
         # 2. Fast deduplication for points
-        # Keep first occurrence of each OSM ID (index level 1)
+        # Keep first occurrence of each unique index (element_type, osm_id)
         if not points.empty:
             points = points[~points.index.duplicated(keep="first")]
             
         # 3. Union non-points (split polygons)
         if not non_points.empty:
-            # Only group if there are actually duplicates
-            if non_points.index.duplicated().any():
-                logger.info("Unioning split polygons/linestrings in tiled OSM data.")
+            # Capture original index names to restore later
+            original_index_names = non_points.index.names
+            
+            # Reset index to ensure consistent grouping behavior
+            non_points_flat = non_points.reset_index()
+            
+            # Determine grouping columns: prefer (element_type, osmid) if they exist
+            group_cols = [c for c in ["element_type", "osmid"] if c in non_points_flat.columns]
+            if not group_cols:
+                # Fallback to whatever index levels were present if standard OSM names are missing
+                group_cols = [c for c in original_index_names if c is not None]
+            
+            # Only group if there are actually duplicates in the ID columns
+            if group_cols and non_points_flat.duplicated(subset=group_cols).any():
+                logger.info(f"Unioning split polygons/linestrings using grouping: {group_cols}")
                 
                 def _union_geoms(group):
-                    if len(group) == 1:
-                        return group.iloc[0]
-                    first = group.iloc[0].copy()
-                    first["geometry"] = unary_union(group["geometry"].tolist())
-                    return first
+                    # Always return a DataFrame (not a Series) with the same columns
+                    # Using iloc[[0]] preserves the row as a single-row DataFrame
+                    res = group.iloc[[0]].copy()
+                    if len(group) > 1:
+                        res["geometry"] = unary_union(group["geometry"].tolist())
+                    return res
                 
-                non_points = non_points.groupby(level=[0, 1]).apply(_union_geoms)
+                # Use groupby on columns and apply the union logic
+                non_points = non_points_flat.groupby(group_cols, group_keys=False).apply(_union_geoms)
+                
+                # Restore the original index structure if possible
+                restorable_names = [name for name in original_index_names if name is not None]
+                if restorable_names and all(name in non_points.columns for name in restorable_names):
+                    non_points = non_points.set_index(restorable_names)
             else:
-                pass # No duplicates, no need to group
+                # No duplicates or no grouping columns found, keep as is
+                pass
         
         # 4. Recombine
         result = pd.concat([points, non_points])
@@ -76,14 +96,15 @@ class TileMerger:
         if len(tiles_data) == 1:
             return tiles_data[0]
 
-        # Use ox.compose to merge graphs
+        # Use nx.compose to merge graphs
         # compose merges nodes and edges by their IDs
         merged_graph = tiles_data[0]
         for g in tiles_data[1:]:
-            merged_graph = ox.compose(merged_graph, g)
+            merged_graph = nx.compose(merged_graph, g)
         
         # 1e-7 degrees is ~1cm at equator, sufficient for topological rejoining (FR-1.1.6)
         tolerance = 1e-7
+        precision = 7  # Derived from tolerance 1e-7
         
         # We can use ox.consolidate_intersections but that simplifies the network.
         # Instead, we'll manually merge nodes that are spatially identical but have different IDs.
@@ -94,8 +115,8 @@ class TileMerger:
             return merged_graph
             
         # Standardize coordinates
-        nodes_df["x_round"] = nodes_df["x"].round(7)
-        nodes_df["y_round"] = nodes_df["y"].round(7)
+        nodes_df["x_round"] = nodes_df["x"].round(precision)
+        nodes_df["y_round"] = nodes_df["y"].round(precision)
         
         # Find groups of nodes at the same location
         duplicates = nodes_df.groupby(["x_round", "y_round"]).filter(lambda x: len(x) > 1)
@@ -108,11 +129,27 @@ class TileMerger:
                 for other_node in group.index[1:]:
                     node_mapping[other_node] = keep_node
             
+            # Find edges that will become self-loops after relabeling
+            self_loops_to_remove = []
+            for u, v, k in merged_graph.edges(keys=True):
+                # If both u and v are being relabeled to the same node, 
+                # or if one is being relabeled to the other
+                new_u = node_mapping.get(u, u)
+                new_v = node_mapping.get(v, v)
+                if new_u == new_v and u != v:
+                    self_loops_to_remove.append((u, v, k))
+
             # Update edges and remove merged nodes
             # networkx.relabel_nodes with copy=False is efficient
             nx.relabel_nodes(merged_graph, node_mapping, copy=False)
             
-            # Relabeling in MultiDiGraph might create multi-edges if they already existed.
-            # But here it just ensures connectivity.
+            # Remove the newly created self-loops
+            if self_loops_to_remove:
+                logger.info(f"Removing {len(self_loops_to_remove)} newly created self-loops.")
+                # After relabeling, the edge (u, v, k) is now (new_u, new_u, k)
+                for u, v, k in self_loops_to_remove:
+                    new_node = node_mapping.get(u, u)
+                    if merged_graph.has_edge(new_node, new_node, k):
+                        merged_graph.remove_edge(new_node, new_node, k)
             
         return merged_graph

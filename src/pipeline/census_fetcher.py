@@ -104,18 +104,7 @@ class CensusFetcher:
                 logger.error(f"Could not find FIPS for state: {state}")
                 return []
             
-            fips_code = state_fips.iloc[0]["state"]
-            
             # Fetch county boundaries for the state
-            # Note: This might be slow if the state has many counties.
-            # Using TIGER/Line via cenpy
-            conn = cenpy.remote.APIConnection("ACS", year=2021) # Placeholder, we just need boundaries
-            # Actually cenpy.products.ACS().from_state(state) might be better but it fetches all BGs.
-            
-            # Simplified approach: use cenpy.explorer to get all county FIPS for the state
-            # and then fetch their boundaries to intersect.
-            # Alternatively, use a lighter service if available.
-            
             # Optimization (High): Use from_polygon to fetch only counties intersecting the bbox
             # instead of fetching all counties for the entire state.
             acs = cenpy.products.ACS(self.census_year)
@@ -131,9 +120,8 @@ class CensusFetcher:
 
             # Filter to the specified state if necessary
             # cenpy returns 'state' column with FIPS code
-            state_fips = cenpy.explorer.fips_table(state).iloc[0]["state"]
             if "state" in counties_gdf.columns:
-                counties_gdf = counties_gdf[counties_gdf["state"] == state_fips]
+                counties_gdf = counties_gdf[counties_gdf["state"] == state_fips.iloc[0]["state"]]
             
             # Find the county column (case-insensitive)
             county_col = next((col for col in counties_gdf.columns if col.lower() == "county"), None)
@@ -147,17 +135,46 @@ class CensusFetcher:
             logger.error(f"Error identifying counties: {e}")
             return []
 
+    def _get_state_fips(self, state: str) -> str:
+        """
+        Normalizes a state name or abbreviation to a 2-digit FIPS string.
+        """
+        if state.isdigit():
+            return state.zfill(2)
+        try:
+            state_fips = cenpy.explorer.fips_table(state)
+            if not state_fips.empty:
+                return str(state_fips.iloc[0]["state"]).zfill(2)
+        except Exception as e:
+            logger.warning(f"Failed to lookup state FIPS for '{state}': {e}")
+        return state
+
+    def _get_county_fips(self, state: str, county: str) -> str:
+        """
+        Normalizes a county identifier to a 3-digit FIPS string.
+        """
+        if county.isdigit():
+            return county.zfill(3)
+        # If not a digit, we could try to look it up, but cenpy's county lookup
+        # is often combined with the fetch. For fallback normalization, 
+        # we at least ensure it's a string.
+        return str(county)
+
     def _fetch_county_block_groups(self, state: str, county: str) -> gpd.GeoDataFrame:
         """
         Fetches block groups and demographics for a single county (FR-1.1.7 step 2).
         """
+        # Normalize state and county to FIPS strings for consistency
+        state_fips = self._get_state_fips(state)
+        county_fips = self._get_county_fips(state, county)
+
         @retry_with_policy(self.retry_policy)
-        def _execute_query():
+        def _execute_query(**kwargs):
             acs = cenpy.products.ACS(self.census_year)
             # Fetch block groups for the county
             # cenpy handles the API calls and geometry merging
             df = acs.from_county(
-                f"{state}, {county}", 
+                f"{state_fips}, {county_fips}", 
                 level="block group", 
                 variables=list(self.variables.keys())
             )
@@ -176,10 +193,15 @@ class CensusFetcher:
             df = df.rename(columns={"GEOID": "geoid"})
         
         # Ensure state and county columns exist (needed for conflict logging)
+        # Normalize fallbacks to FIPS strings for consistent merging and logging
         if "state" not in df.columns:
-            df["state"] = state
+            df["state"] = state_fips
         if "county" not in df.columns:
-            df["county"] = county
+            df["county"] = county_fips
+        
+        # Ensure they are strings (sometimes cenpy returns them as objects/numbers)
+        df["state"] = df["state"].astype(str).str.zfill(2)
+        df["county"] = df["county"].astype(str).str.zfill(3)
         
         # Keep only required columns
         required_cols = ["geoid", "geometry", "population", "median_income", "state", "county"]
