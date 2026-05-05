@@ -74,8 +74,8 @@ class TileMerger:
                 if restorable_names and all(name in non_points.columns for name in restorable_names):
                     non_points = non_points.set_index(restorable_names)
             else:
-                # No duplicates or no grouping columns found, keep as is
-                pass
+                # No duplicates or no grouping columns found, keep original structure
+                logger.debug("No duplicate non-point geometries found, skipping union.")
         
         # 4. Recombine
         result = pd.concat([points, non_points])

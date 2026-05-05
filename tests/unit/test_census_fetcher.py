@@ -1,19 +1,31 @@
 import sys
-from unittest.mock import MagicMock, patch
-
-# COMPLETELY MOCK cenpy before any other imports
-mock_cenpy = MagicMock()
-mock_cenpy.products.ACS = MagicMock()
-mock_cenpy.explorer.fips_table = MagicMock()
-sys.modules["cenpy"] = mock_cenpy
-sys.modules["cenpy.products"] = mock_cenpy.products
-sys.modules["cenpy.explorer"] = mock_cenpy.explorer
-
 import pytest
 import pandas as pd
 import geopandas as gpd
+from unittest.mock import MagicMock, patch
 from shapely.geometry import Point
-from src.pipeline.census_fetcher import CensusFetcher
+
+@pytest.fixture(scope="module")
+def mock_cenpy():
+    """Fixture to mock cenpy and prevent leaks across the pytest session."""
+    mp = pytest.MonkeyPatch()
+    mock = MagicMock()
+    mock.products.ACS = MagicMock()
+    mock.explorer.fips_table = MagicMock()
+    
+    # Use monkeypatch to safely set sys.modules
+    mp.setitem(sys.modules, "cenpy", mock)
+    mp.setitem(sys.modules, "cenpy.products", mock.products)
+    mp.setitem(sys.modules, "cenpy.explorer", mock.explorer)
+    
+    yield mock
+    mp.undo()
+
+@pytest.fixture(scope="module")
+def CensusFetcher(mock_cenpy):
+    """Fixture to import and return the CensusFetcher class after mocking cenpy."""
+    from src.pipeline.census_fetcher import CensusFetcher
+    return CensusFetcher
 
 @pytest.fixture
 def mock_config(tmp_path):
@@ -21,7 +33,7 @@ def mock_config(tmp_path):
     config_file.write_text("census_year: 2021\nretry_policy:\n  attempts: 1")
     return str(config_file)
 
-def test_get_state_fips(mock_config):
+def test_get_state_fips(CensusFetcher, mock_cenpy, mock_config):
     fetcher = CensusFetcher(mock_config)
     
     # Test digit input
@@ -33,19 +45,21 @@ def test_get_state_fips(mock_config):
     assert fetcher._get_state_fips("New York") == "36"
     
     # Test failure fallback
-    mock_cenpy.explorer.fips_table.side_effect = Exception("API Error")
-    assert fetcher._get_state_fips("UnknownState") == "UnknownState"
-    # Reset side effect for other tests
-    mock_cenpy.explorer.fips_table.side_effect = None
+    with pytest.raises(ValueError, match="Could not resolve state 'UnknownState'"):
+        mock_cenpy.explorer.fips_table.side_effect = Exception("API Error")
+        try:
+            fetcher._get_state_fips("UnknownState")
+        finally:
+            mock_cenpy.explorer.fips_table.side_effect = None
 
-def test_get_county_fips(mock_config):
+def test_get_county_fips(CensusFetcher, mock_config):
     fetcher = CensusFetcher(mock_config)
     
     assert fetcher._get_county_fips("36", "1") == "001"
     assert fetcher._get_county_fips("36", "061") == "061"
     assert fetcher._get_county_fips("36", "Albany") == "Albany"
 
-def test_fetch_county_block_groups_normalization(mock_config):
+def test_fetch_county_block_groups_normalization(CensusFetcher, mock_cenpy, mock_config):
     fetcher = CensusFetcher(mock_config)
     
     # Mock ACS products
@@ -74,7 +88,7 @@ def test_fetch_county_block_groups_normalization(mock_config):
             "36, 061", level="block group", variables=["B01003_001E", "B19013_001E"]
         )
 
-def test_fetch_county_block_groups_preserves_existing_fips(mock_config):
+def test_fetch_county_block_groups_preserves_existing_fips(CensusFetcher, mock_cenpy, mock_config):
     fetcher = CensusFetcher(mock_config)
     
     mock_acs = MagicMock()
@@ -96,7 +110,7 @@ def test_fetch_county_block_groups_preserves_existing_fips(mock_config):
     assert result.iloc[0]["state"] == "36"
     assert result.iloc[0]["county"] == "061"
 
-def test_identify_counties(mock_config):
+def test_identify_counties(CensusFetcher, mock_cenpy, mock_config):
     # Reset mock call count
     mock_cenpy.explorer.fips_table.reset_mock()
     fetcher = CensusFetcher(mock_config)

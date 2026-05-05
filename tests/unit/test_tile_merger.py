@@ -2,6 +2,7 @@ import networkx as nx
 import osmnx as ox
 import pandas as pd
 import geopandas as gpd
+import pytest
 from shapely.geometry import Point, Polygon
 from src.pipeline.tile_merger import TileMerger
 
@@ -22,7 +23,8 @@ def test_merge_pois_multiindex():
     
     # Should have 1 row, unioned geometry
     assert len(merged) == 1
-    assert merged.iloc[0]["geometry"].area == 2.0
+    assert merged.iloc[0]["geometry"].area == pytest.approx(2.0)
+    assert merged.iloc[0]["name"] == "Test"
     assert isinstance(merged.index, pd.MultiIndex)
     assert merged.index.names == ["element_type", "osmid"]
 
@@ -51,6 +53,7 @@ def test_merge_pois_flat_index():
     # Should have 1 row, unioned geometry
     assert len(merged) == 1
     assert merged.iloc[0]["geometry"].area == 2.0
+    assert merged.iloc[0]["name"] == "Test"
     assert "element_type" in merged.columns
     assert "osmid" in merged.columns
 
@@ -66,7 +69,9 @@ def test_merge_pois_mixed_types():
     idx_p = pd.MultiIndex.from_tuples([("node", 1)], names=["element_type", "osmid"])
     idx_w = pd.MultiIndex.from_tuples([("way", 123)], names=["element_type", "osmid"])
     
-    gdf1 = gpd.GeoDataFrame({"geometry": [p, poly1]}, index=idx_p.append(idx_w), crs="EPSG:4326")
+    gdf_p = gpd.GeoDataFrame({"geometry": [p]}, index=idx_p, crs="EPSG:4326")
+    gdf_w1 = gpd.GeoDataFrame({"geometry": [poly1]}, index=idx_w, crs="EPSG:4326")
+    gdf1 = pd.concat([gdf_p, gdf_w1])
     gdf2 = gpd.GeoDataFrame({"geometry": [poly2]}, index=idx_w, crs="EPSG:4326")
     
     merged = merger.merge_pois([gdf1, gdf2])
@@ -75,4 +80,4 @@ def test_merge_pois_mixed_types():
     assert len(merged) == 2
     assert (merged.geometry.type == "Point").sum() == 1
     assert (merged.geometry.type == "Polygon").sum() == 1
-    assert merged.loc[("way", 123), "geometry"].area == 2.0
+    assert merged.loc[("way", 123), "geometry"].area == pytest.approx(2.0)

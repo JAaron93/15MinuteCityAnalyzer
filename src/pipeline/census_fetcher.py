@@ -121,7 +121,8 @@ class CensusFetcher:
             # Filter to the specified state if necessary
             # cenpy returns 'state' column with FIPS code
             if "state" in counties_gdf.columns:
-                counties_gdf = counties_gdf[counties_gdf["state"] == state_fips.iloc[0]["state"]]
+                target_state_fips = str(state_fips.iloc[0]["state"]).zfill(2)
+                counties_gdf = counties_gdf[counties_gdf["state"].astype(str).str.zfill(2) == target_state_fips]
             
             # Find the county column (case-insensitive)
             county_col = next((col for col in counties_gdf.columns if col.lower() == "county"), None)
@@ -138,6 +139,9 @@ class CensusFetcher:
     def _get_state_fips(self, state: str) -> str:
         """
         Normalizes a state name or abbreviation to a 2-digit FIPS string.
+        
+        Raises:
+            ValueError: If the state cannot be resolved to a FIPS code.
         """
         if state.isdigit():
             return state.zfill(2)
@@ -147,7 +151,7 @@ class CensusFetcher:
                 return str(state_fips.iloc[0]["state"]).zfill(2)
         except Exception as e:
             logger.warning(f"Failed to lookup state FIPS for '{state}': {e}")
-        return state
+        raise ValueError(f"Could not resolve state '{state}' to a FIPS code")
 
     def _get_county_fips(self, state: str, county: str) -> str:
         """
