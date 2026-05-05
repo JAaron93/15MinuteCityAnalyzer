@@ -31,7 +31,7 @@ class TestDetermineUtmZone:
 
         assert utm_crs is not None
         # UTM zone 11N for Southern California
-        assert "UTM" in utm_crs.name or "utm" in str(utm_crs).lower()
+        assert utm_crs.to_epsg() == 32611  # UTM zone 11N
 
     def test_new_york_bbox(self) -> None:
         """New York City should resolve to a projected UTM CRS."""
@@ -83,7 +83,7 @@ class TestTransformToUtm:
 
     def test_empty_geodataframe(self) -> None:
         """Empty GeoDataFrame should return empty without error."""
-        empty = gpd.GeoDataFrame()
+        empty = gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
         result = transform_to_utm(empty, self.utm_crs)
         assert result.empty
 
@@ -131,7 +131,7 @@ class TestTransformToWgs84:
 
     def test_empty_geodataframe(self) -> None:
         """Empty GeoDataFrame should return empty without error."""
-        empty = gpd.GeoDataFrame()
+        empty = gpd.GeoDataFrame(geometry=[], crs=self.utm_crs)
         result = transform_to_wgs84(empty)
         assert result.empty
 
@@ -144,7 +144,7 @@ class TestValidateWgs84:
         gdf = gpd.GeoDataFrame(
             geometry=[Point(0, 0)], crs="EPSG:4326"
         )
-        assert validate_wgs84(gdf) is True
+        assert validate_wgs84(gdf) is None
 
     def test_non_wgs84_raises(self) -> None:
         """GeoDataFrame in a projected CRS should raise."""

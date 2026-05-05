@@ -48,6 +48,13 @@ def determine_utm_zone(
     """
     try:
         north, south, east, west = bbox
+        
+        # Validate coordinate ranges
+        if not (-90 <= south <= north <= 90):
+            raise ValueError(f"Invalid latitude range: south={south}, north={north}")
+        if not (-180 <= west <= 180 and -180 <= east <= 180):
+            raise ValueError(f"Invalid longitude range: west={west}, east={east}")
+        
         centroid_lat = (north + south) / 2.0
         centroid_lon = (east + west) / 2.0
 
@@ -62,7 +69,7 @@ def determine_utm_zone(
 
         logger.info(
             f"Determined UTM CRS: {utm_crs} "
-            f"(centroid: {centroid_lat:.4f}°N, {centroid_lon:.4f}°E)"
+            f"(centroid: {centroid_lat:.4f}, {centroid_lon:.4f})"
         )
         return utm_crs
 
@@ -86,8 +93,10 @@ def transform_to_utm(
         A new GeoDataFrame reprojected to the UTM CRS.
 
     Raises:
-        CRSTransformationError: If the source data has no CRS or the
-            transformation fails.
+        CRSTransformationError: If the transformation fails.
+
+    Note:
+        If the GeoDataFrame has no CRS, WGS84 (EPSG:4326) is assumed.
     """
     if gdf.empty:
         logger.warning("Cannot transform empty GeoDataFrame to UTM.")
@@ -143,14 +152,11 @@ def transform_to_wgs84(
         raise CRSTransformationError(msg) from e
 
 
-def validate_wgs84(gdf: gpd.GeoDataFrame) -> bool:
+def validate_wgs84(gdf: gpd.GeoDataFrame) -> None:
     """Validate that a GeoDataFrame is in WGS84 (EPSG:4326).
 
     Args:
         gdf: GeoDataFrame to validate.
-
-    Returns:
-        ``True`` if the CRS is WGS84.
 
     Raises:
         CRSTransformationError: If the CRS is not WGS84.
@@ -167,4 +173,3 @@ def validate_wgs84(gdf: gpd.GeoDataFrame) -> bool:
         )
 
     logger.debug("CRS validation passed: EPSG:4326 (WGS84)")
-    return True

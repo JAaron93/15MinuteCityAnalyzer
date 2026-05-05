@@ -23,6 +23,17 @@ from shapely.geometry import MultiPoint, Point, Polygon
 logger = logging.getLogger(__name__)
 
 
+# Global variable for sharing the graph among parallel workers
+# to avoid repeated pickling (Task 3.2 performance optimization)
+_worker_graph: Optional[nx.MultiDiGraph] = None
+
+
+def _init_worker(graph: nx.MultiDiGraph) -> None:
+    """Initialise worker process with the shared graph."""
+    global _worker_graph
+    _worker_graph = graph
+
+
 def _load_config(config_path: str = "pipeline_config.yaml") -> Dict[str, Any]:
     """Load pipeline configuration from YAML.
 
@@ -32,7 +43,7 @@ def _load_config(config_path: str = "pipeline_config.yaml") -> Dict[str, Any]:
     Returns:
         Parsed configuration dictionary.
     """
-    with open(config_path, "r") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -120,14 +131,13 @@ def _calculate_single_isochrone_worker(
     called via ``ProcessPoolExecutor``.
 
     Args:
-        args: Tuple of ``(graph, amenity_point, amenity_type, amenity_id,
+        args: Tuple of ``(amenity_point, amenity_type, amenity_id,
             walk_time_minutes, walk_speed_kmh)``.
 
     Returns:
         A dictionary with isochrone data, or ``None`` on failure.
     """
     (
-        graph,
         amenity_point,
         amenity_type,
         amenity_id,
@@ -135,8 +145,12 @@ def _calculate_single_isochrone_worker(
         walk_speed_kmh,
     ) = args
 
+    if _worker_graph is None:
+        logger.error("Worker graph not initialized.")
+        return None
+
     polygon = calculate_isochrone(
-        graph, amenity_point, walk_time_minutes, walk_speed_kmh
+        _worker_graph, amenity_point, walk_time_minutes, walk_speed_kmh
     )
 
     if polygon is not None:
@@ -203,7 +217,6 @@ def calculate_all_isochrones(
                 amenity_type = row.get("amenity_type", "unknown")
                 tasks.append(
                     (
-                        graph,
                         point,
                         amenity_type,
                         idx,
@@ -212,7 +225,11 @@ def calculate_all_isochrones(
                     )
                 )
 
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            with ProcessPoolExecutor(
+                max_workers=max_workers,
+                initializer=_init_worker,
+                initargs=(graph,),
+            ) as executor:
                 futures = {
                     executor.submit(_calculate_single_isochrone_worker, t): i
                     for i, t in enumerate(tasks)
@@ -242,15 +259,24 @@ def calculate_all_isochrones(
 
     if not results:
         logger.warning("No isochrones could be generated for any amenity.")
-        return gpd.GeoDataFrame(
+        empty_gdf = gpd.GeoDataFrame(
             columns=["amenity_id", "amenity_type", "geometry", "walk_time_minutes"],
         )
+        # Inherit CRS from the graph
+        try:
+            target_crs = ox.projection.get_crs(graph)
+        except (AttributeError, ValueError):
+            target_crs = graph.graph.get("crs", "EPSG:4326")
+        return empty_gdf.set_crs(target_crs)
 
     isochrones_gdf = gpd.GeoDataFrame(results, geometry="geometry")
 
     # Inherit CRS from the graph (OSMnx graphs are WGS84 by default)
-    graph_crs = ox.projection.project_graph(graph, to_latlong=True) if False else None
-    isochrones_gdf = isochrones_gdf.set_crs("EPSG:4326")
+    try:
+        target_crs = ox.projection.get_crs(graph)
+    except (AttributeError, ValueError):
+        target_crs = graph.graph.get("crs", "EPSG:4326")
+    isochrones_gdf = isochrones_gdf.set_crs(target_crs)
 
     logger.info(
         f"Generated {len(isochrones_gdf)} isochrones out of "

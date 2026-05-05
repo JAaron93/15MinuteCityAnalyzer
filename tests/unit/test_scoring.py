@@ -121,6 +121,99 @@ def _default_config() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Tests: spatial_join_amenities (task 3.3.2)
+# ---------------------------------------------------------------------------
+
+class TestSpatialJoinAmenities:
+    """Tests for spatial_join_amenities() — task 6.2.7."""
+
+    def setup_method(self) -> None:
+        """Derive a deterministic UTM CRS from the synthetic data bbox."""
+        # _make_block_groups spans roughly lon -117.6→-117.5, lat 33.8→33.9
+        self.block_groups = _make_block_groups(n=5)
+        self.isochrones = _make_isochrones(n_per_type=3)
+        self.utm_crs = determine_utm_zone((33.9, 33.8, -117.5, -117.6))
+
+    def test_returns_geodataframe(self) -> None:
+        """Result must be a GeoDataFrame."""
+        with patch(
+            "src.pipeline.scoring._load_config", return_value=_default_config()
+        ):
+            result = spatial_join_amenities(
+                self.block_groups, self.isochrones, self.utm_crs
+            )
+        assert isinstance(result, gpd.GeoDataFrame)
+
+    def test_expected_columns_present(self) -> None:
+        """Result must have geoid, amenity_type, and overlap_fraction columns."""
+        with patch(
+            "src.pipeline.scoring._load_config", return_value=_default_config()
+        ):
+            result = spatial_join_amenities(
+                self.block_groups, self.isochrones, self.utm_crs
+            )
+        assert "geoid" in result.columns
+        assert "amenity_type" in result.columns
+        assert "overlap_fraction" in result.columns
+
+    def test_all_amenity_types_represented(self) -> None:
+        """Each of the four amenity types should appear in the join result."""
+        with patch(
+            "src.pipeline.scoring._load_config", return_value=_default_config()
+        ):
+            result = spatial_join_amenities(
+                self.block_groups, self.isochrones, self.utm_crs
+            )
+        assert not result.empty
+        found_types = set(result["amenity_type"].unique())
+        for amenity_type in ("grocery", "healthcare", "transit", "other"):
+            assert amenity_type in found_types, f"Missing type: {amenity_type}"
+
+    def test_overlap_fraction_within_bounds(self) -> None:
+        """All overlap_fractions must be in (0, 1] and >= min_overlap threshold."""
+        config = _default_config()
+        min_overlap = config["spatial_join"]["min_overlap_fraction"]
+        with patch("src.pipeline.scoring._load_config", return_value=config):
+            result = spatial_join_amenities(
+                self.block_groups, self.isochrones, self.utm_crs
+            )
+        assert (result["overlap_fraction"] >= min_overlap).all()
+        assert (result["overlap_fraction"] <= 1.0).all()
+
+    def test_empty_isochrones_returns_empty(self) -> None:
+        """Empty isochrones input should return an empty GeoDataFrame."""
+        empty_iso = gpd.GeoDataFrame(
+            columns=["amenity_type", "geometry"], crs="EPSG:4326"
+        )
+        with patch(
+            "src.pipeline.scoring._load_config", return_value=_default_config()
+        ):
+            result = spatial_join_amenities(
+                self.block_groups, empty_iso, self.utm_crs
+            )
+        assert isinstance(result, gpd.GeoDataFrame)
+        assert result.empty
+
+    def test_high_overlap_threshold_reduces_matches(self) -> None:
+        """Raising the overlap threshold should produce fewer or equal matches."""
+        low_config = _default_config()
+        low_config["spatial_join"]["min_overlap_fraction"] = 0.01
+        high_config = _default_config()
+        high_config["spatial_join"]["min_overlap_fraction"] = 0.80
+
+        with patch("src.pipeline.scoring._load_config", return_value=low_config):
+            result_low = spatial_join_amenities(
+                self.block_groups, self.isochrones, self.utm_crs
+            )
+        with patch("src.pipeline.scoring._load_config", return_value=high_config):
+            result_high = spatial_join_amenities(
+                self.block_groups, self.isochrones, self.utm_crs
+            )
+        assert len(result_high) <= len(result_low)
+
+
+
+# ---------------------------------------------------------------------------
 # Tests: validate_threshold_config (task 6.2.11)
 # ---------------------------------------------------------------------------
 
