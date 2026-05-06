@@ -497,17 +497,22 @@ def _run_sensitivity_test(
     # +5 shift
     high_plus = min(high_min + 5, 100)
     med_plus = min(med_min + 5, 100)
-    # Ensure high > med after clamping
+    
+    # Ensure high > med after clamping (DR-3.3.4)
     if high_plus <= med_plus:
-        high_plus = min(med_plus + 1, 100)
+        med_plus = max(med_min, high_plus - 1)
+        
     shifted_plus = _categorise(scores, high_plus, med_plus)
     stability_plus = (baseline == shifted_plus).mean()
 
     # -5 shift
     high_minus = max(high_min - 5, 0)
     med_minus = max(med_min - 5, 0)
+    
+    # Ensure high > med after clamping (DR-3.3.4)
     if high_minus <= med_minus:
-        high_minus = min(med_minus + 1, 100)
+        high_minus = min(high_plus, med_minus + 1)
+        
     shifted_minus = _categorise(scores, high_minus, med_minus)
     stability_minus = (baseline == shifted_minus).mean()
 

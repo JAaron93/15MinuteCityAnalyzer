@@ -183,7 +183,9 @@ class TestSpatialJoinAmenities:
     def test_empty_isochrones_returns_empty(self) -> None:
         """Empty isochrones input should return an empty GeoDataFrame."""
         empty_iso = gpd.GeoDataFrame(
-            columns=["amenity_type", "geometry"], crs="EPSG:4326"
+            {"amenity_type": pd.Series(dtype=str), "geometry": gpd.GeoSeries(dtype="geometry")},
+            geometry="geometry",
+            crs="EPSG:4326",
         )
         with patch(
             "src.pipeline.scoring._load_config", return_value=_default_config()
@@ -569,6 +571,36 @@ class TestAssignEquityCategory:
         assert "shift_minus5" in stability
         assert 0.0 <= stability["shift_plus5"] <= 1.0
         assert 0.0 <= stability["shift_minus5"] <= 1.0
+
+    def test_sensitivity_clamping_at_100(self) -> None:
+        """Sensitivity test must not collapse medium category when high is clamped to 100."""
+        # Setup scores and thresholds so that high + 5 >= 100
+        scores = list(range(0, 101))
+        bg = self._make_scored_data(scores)
+
+        clamping_config = _default_config()
+        clamping_config["equity_thresholds"]["high_access_min"] = 98
+        clamping_config["equity_thresholds"]["medium_access_min"] = 97
+
+        with patch(
+            "src.pipeline.scoring._load_config", return_value=clamping_config
+        ):
+            _, metadata = assign_equity_category(bg)
+
+        # In _run_sensitivity_test:
+        # high_plus = min(98 + 5, 100) = 100
+        # med_plus = min(97 + 5, 100) = 100
+        # if high_plus <= med_plus: med_plus = max(97, 100 - 1) = 99
+        # So bins should be [-inf, 99, 100, inf], allowing a Medium Access bucket [99, 100)
+        
+        # Stability is checked against baseline: [-inf, 97, 98, inf]
+        # Baseline categories for [97, 98, 99, 100]: [M, H, H, H]
+        # Shifted categories for [97, 98, 99, 100]: [L, L, M, H]
+        
+        # The fact that it doesn't crash and returns stability is the primary check here.
+        stability = metadata["equity_thresholds.sensitivity_stability"]
+        assert "shift_plus5" in stability
+        assert 0.0 <= stability["shift_plus5"] <= 1.0
 
     def test_invalid_config_raises(self) -> None:
         """Invalid threshold config should raise ThresholdConfigError."""

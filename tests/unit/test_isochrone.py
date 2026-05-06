@@ -115,8 +115,7 @@ class TestCalculateIsochrone:
         # we'd get None. This tests graceful handling.
         # With a grid graph, nearest_nodes will pick an edge node.
         # The result should still be a valid polygon or None.
-        if result is not None:
-            assert isinstance(result, Polygon)
+        assert result is None or isinstance(result, Polygon)
 
     def test_very_short_time_returns_small_isochrone(self) -> None:
         """Very short walk time should produce a smaller isochrone."""

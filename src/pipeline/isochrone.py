@@ -47,6 +47,19 @@ def _load_config(config_path: str = "pipeline_config.yaml") -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
+def _get_graph_crs(graph: nx.MultiDiGraph) -> Any:
+    """Safely extract the CRS from an OSMnx graph, with fallback."""
+    crs = graph.graph.get("crs")
+    if crs:
+        return crs
+    if hasattr(ox.projection, "get_crs"):
+        try:
+            return ox.projection.get_crs(graph)
+        except (AttributeError, ValueError):
+            pass
+    return "EPSG:4326"
+
+
 def calculate_isochrone(
     graph: nx.MultiDiGraph,
     amenity_point: Point,
@@ -263,20 +276,12 @@ def calculate_all_isochrones(
             columns=["amenity_id", "amenity_type", "geometry", "walk_time_minutes"],
         )
         # Inherit CRS from the graph
-        try:
-            target_crs = ox.projection.get_crs(graph)
-        except (AttributeError, ValueError):
-            target_crs = graph.graph.get("crs", "EPSG:4326")
-        return empty_gdf.set_crs(target_crs)
+        return empty_gdf.set_crs(_get_graph_crs(graph))
 
     isochrones_gdf = gpd.GeoDataFrame(results, geometry="geometry")
 
     # Inherit CRS from the graph (OSMnx graphs are WGS84 by default)
-    try:
-        target_crs = ox.projection.get_crs(graph)
-    except (AttributeError, ValueError):
-        target_crs = graph.graph.get("crs", "EPSG:4326")
-    isochrones_gdf = isochrones_gdf.set_crs(target_crs)
+    isochrones_gdf = isochrones_gdf.set_crs(_get_graph_crs(graph))
 
     logger.info(
         f"Generated {len(isochrones_gdf)} isochrones out of "

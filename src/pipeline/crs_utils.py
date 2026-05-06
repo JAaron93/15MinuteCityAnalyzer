@@ -54,6 +54,10 @@ def determine_utm_zone(
             raise ValueError(f"Invalid latitude range: south={south}, north={north}")
         if not (-180 <= west <= 180 and -180 <= east <= 180):
             raise ValueError(f"Invalid longitude range: west={west}, east={east}")
+        if west > east:
+            raise ValueError(
+                f"Antimeridian-crossing bounding boxes not supported: west={west}, east={east}"
+            )
         
         centroid_lat = (north + south) / 2.0
         centroid_lon = (east + west) / 2.0
