@@ -95,46 +95,46 @@
   - [x] 3.4.2 Add R-tree spatial index creation for isochrones
   - [x] 3.4.3 Use spatial index for faster spatial join operations
 
-## 4. Data Processing Pipeline (Marimo Notebook)
+## [x] 4. Data Processing Pipeline (Marimo Notebook)
 
-- [ ] 4.1 Create Marimo notebook structure
-  - [ ] 4.1.1 Create `pipeline.py` as Marimo-compatible notebook
-  - [ ] 4.1.2 Add cell for configuration parameters (city name, state, bounding box, output path)
-  - [ ] 4.1.3 Add cell for importing required modules
-  - [ ] 4.1.4 Add cell for setting up logging
+- [x] 4.1 Create Marimo notebook structure
+  - [x] 4.1.1 Create `pipeline.py` as Marimo-compatible notebook
+  - [x] 4.1.2 Add cell for configuration parameters (city name, state, bounding box, output path)
+  - [x] 4.1.3 Add cell for importing required modules
+  - [x] 4.1.4 Add cell for setting up logging
 
-- [ ] 4.2 Implement pipeline workflow cells
-  - [ ] 4.2.1 Add cell for fetching Census demographics
-  - [ ] 4.2.2 Add cell for fetching OSM amenities
-  - [ ] 4.2.3 Add cell for fetching street network
-  - [ ] 4.2.4 Add cell for CRS transformation to UTM
-  - [ ] 4.2.5 Add cell for calculating isochrones
-  - [ ] 4.2.6 Add cell for CRS transformation back to WGS84
-  - [ ] 4.2.7 Add cell for spatial join and accessibility scoring
-  - [ ] 4.2.8 Add cell for data validation and quality checks
-  - [ ] 4.2.9 Add cell for exporting to GeoParquet
+- [x] 4.2 Implement pipeline workflow cells
+  - [x] 4.2.1 Add cell for fetching Census demographics
+  - [x] 4.2.2 Add cell for fetching OSM amenities
+  - [x] 4.2.3 Add cell for fetching street network
+  - [x] 4.2.4 Add cell for CRS transformation to UTM
+  - [x] 4.2.5 Add cell for calculating isochrones
+  - [x] 4.2.6 Add cell for CRS transformation back to WGS84
+  - [x] 4.2.7 Add cell for spatial join and accessibility scoring
+  - [x] 4.2.8 Add cell for data validation and quality checks
+  - [x] 4.2.9 Add cell for exporting to GeoParquet
 
-- [ ] 4.3 Add visualization cells for debugging
-  - [ ] 4.3.1 Add cell to visualize fetched block groups
-  - [ ] 4.3.2 Add cell to visualize amenities on map
-  - [ ] 4.3.3 Add cell to visualize sample isochrones
-  - [ ] 4.3.4 Add cell to display accessibility score distribution histogram
-  - [ ] 4.3.5 Add cell to show summary statistics
+- [x] 4.3 Add visualization cells for debugging
+  - [x] 4.3.1 Add cell to visualize fetched block groups
+  - [x] 4.3.2 Add cell to visualize amenities on map
+  - [x] 4.3.3 Add cell to visualize sample isochrones
+  - [x] 4.3.4 Add cell to display accessibility score distribution histogram
+  - [x] 4.3.5 Add cell to show summary statistics
 
-- [ ] 4.4 Implement data export
-  - [ ] 4.4.1 Create `src/pipeline/exporter.py` module
-  - [ ] 4.4.2 Implement `export_to_geoparquet()` function with snappy compression
-  - [ ] 4.4.3 Add metadata to GeoParquet file: processing date, pipeline parameters, data sources, `equity_thresholds.*` validation fields (all seven keys from FR-1.2.4), and `skipped_tiles` list (from tiling, if applicable)
-  - [ ] 4.4.4 Implement geometry simplification to reduce file size (tolerance=0.0001)
-  - [ ] 4.4.5 Validate output file size is under 50 MB; if the limit is exceeded, apply the following remediation steps in order:
-    - [ ] 4.4.5.1 Increase geometry simplification tolerance (try `tolerance=0.0005`, then `0.001`) and re-run snappy compression; log the file size after each step
-    - [ ] 4.4.5.2 If simplification alone is insufficient, implement spatial chunking: split the output by tile or region (e.g., quadrant grid), export each chunk as a separate GeoParquet file, and add a `README_assembly.md` explaining how to load and concatenate the chunks in the Streamlit app
-    - [ ] 4.4.5.3 Document expected output sizes for different city scales in `docs/data_sources.md`:
+- [x] 4.4 Implement data export
+  - [x] 4.4.1 Create `src/pipeline/exporter.py` module
+  - [x] 4.4.2 Implement `export_to_geoparquet()` function with snappy compression
+  - [x] 4.4.3 Add metadata to GeoParquet file: processing date, pipeline parameters, data sources, `equity_thresholds.*` validation fields (all seven keys from FR-1.2.4), and `skipped_tiles` list (from tiling, if applicable)
+  - [x] 4.4.4 Implement geometry simplification to reduce file size (tolerance=0.0001)
+  - [x] 4.4.5 Validate output file size is under 50 MB; if the limit is exceeded, apply the following remediation steps in order:
+    - [x] 4.4.5.1 Increase geometry simplification tolerance (try `tolerance=0.0005`, then `0.001`) and re-run snappy compression; log the file size after each step
+    - [x] 4.4.5.2 If simplification alone is insufficient, implement spatial chunking: split the output by tile or region (e.g., quadrant grid), export each chunk as a separate GeoParquet file, and add a `README_assembly.md` explaining how to load and concatenate the chunks in the Streamlit app
+    - [x] 4.4.5.3 Document expected output sizes for different city scales in `docs/data_sources.md`:
       - Small city (< 100k pop): ~5–15 MB — single file, default tolerance sufficient
       - Medium city (100k–500k pop): ~15–40 MB — may need tolerance increase
       - Large city (> 500k pop): ~40–100 MB — likely requires spatial chunking or aggressive simplification
-    - [ ] 4.4.5.4 Raise a `FileSizeLimitError` with a descriptive message if the file still exceeds 50 MB after all remediation steps, listing which steps were attempted and the resulting sizes
-  - [ ] 4.4.6 Add logging for export statistics (file size, record count, processing time)
+    - [x] 4.4.5.4 Raise a `FileSizeLimitError` with a descriptive message if the file still exceeds 50 MB after all remediation steps, listing which steps were attempted and the resulting sizes
+  - [x] 4.4.6 Add logging for export statistics (file size, record count, processing time)
 
 ## 5. Streamlit Dashboard
 
