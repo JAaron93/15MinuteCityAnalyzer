@@ -601,6 +601,8 @@ class TestAssignEquityCategory:
         stability = metadata["equity_thresholds.sensitivity_stability"]
         assert "shift_plus5" in stability
         assert 0.0 <= stability["shift_plus5"] <= 1.0
+        assert "shift_minus5" in stability
+        assert 0.0 <= stability["shift_minus5"] <= 1.0
 
     def test_invalid_config_raises(self) -> None:
         """Invalid threshold config should raise ThresholdConfigError."""

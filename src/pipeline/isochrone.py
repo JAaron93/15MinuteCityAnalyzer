@@ -48,16 +48,12 @@ def _load_config(config_path: str = "pipeline_config.yaml") -> Dict[str, Any]:
 
 
 def _get_graph_crs(graph: nx.MultiDiGraph) -> Any:
-    """Safely extract the CRS from an OSMnx graph, with fallback."""
-    crs = graph.graph.get("crs")
-    if crs:
-        return crs
-    if hasattr(ox.projection, "get_crs"):
-        try:
-            return ox.projection.get_crs(graph)
-        except (AttributeError, ValueError):
-            pass
-    return "EPSG:4326"
+    """Safely extract the CRS from an OSMnx graph, with fallback.
+
+    Prefers graph.graph.get("crs") as the primary source of truth, falling back
+    to "EPSG:4326" if missing.
+    """
+    return graph.graph.get("crs", "EPSG:4326")
 
 
 def calculate_isochrone(

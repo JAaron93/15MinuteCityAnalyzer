@@ -511,7 +511,7 @@ def _run_sensitivity_test(
     
     # Ensure high > med after clamping (DR-3.3.4)
     if high_minus <= med_minus:
-        high_minus = min(high_plus, med_minus + 1)
+        high_minus = med_minus + 1
         
     shifted_minus = _categorise(scores, high_minus, med_minus)
     stability_minus = (baseline == shifted_minus).mean()
