@@ -136,65 +136,65 @@
     - [x] 4.4.5.4 Raise a `FileSizeLimitError` with a descriptive message if the file still exceeds 50 MB after all remediation steps, listing which steps were attempted and the resulting sizes
   - [x] 4.4.6 Add logging for export statistics (file size, record count, processing time)
 
-## 5. Streamlit Dashboard
+## [x] 5. Streamlit Dashboard
 
-- [ ] 5.1 Create main dashboard application
-  - [ ] 5.1.1 Create `app.py` in project root
-  - [ ] 5.1.2 Implement page configuration (title, icon, layout="wide")
-  - [ ] 5.1.3 Add project title and description at top of page
-  - [ ] 5.1.4 Add footer with data sources, attribution, and license information
+- [x] 5.1 Create main dashboard application
+  - [x] 5.1.1 Create `app.py` in project root
+  - [x] 5.1.2 Implement page configuration (title, icon, layout="wide")
+  - [x] 5.1.3 Add project title and description at top of page
+  - [x] 5.1.4 Add footer with data sources, attribution, and license information
 
-- [ ] 5.2 Implement data loading
-  - [ ] 5.2.1 Create `src/dashboard/data_loader.py` module
-  - [ ] 5.2.2 Implement `load_geoparquet()` function with @st.cache_data decorator
-  - [ ] 5.2.3 Add error handling for missing file with user-friendly message
-  - [ ] 5.2.4 Add data validation checks (required columns, valid geometries, CRS)
-  - [ ] 5.2.5 Add logging for data loading statistics
+- [x] 5.2 Implement data loading
+  - [x] 5.2.1 Create `src/dashboard/data_loader.py` module
+  - [x] 5.2.2 Implement `load_geoparquet()` function with @st.cache_data decorator
+  - [x] 5.2.3 Add error handling for missing file with user-friendly message
+  - [x] 5.2.4 Add data validation checks (required columns, valid geometries, CRS)
+  - [x] 5.2.5 Add logging for data loading statistics
 
-- [ ] 5.3 Implement map visualization
-  - [ ] 5.3.1 Create `src/dashboard/map_renderer.py` module
-  - [ ] 5.3.2 Implement `create_choropleth_map()` function using Folium
-  - [ ] 5.3.3 Add color scale for accessibility scores (RdYlGn colormap)
-  - [ ] 5.3.4 Add color scale for median income (YlOrRd colormap)
-  - [ ] 5.3.5 Implement tooltips showing block group details (geoid, population, income, score)
-  - [ ] 5.3.6 Add map legend explaining color scales
-  - [ ] 5.3.7 Add OpenStreetMap attribution in map footer
-  - [ ] 5.3.8 Implement layer toggle between Accessibility Score and Median Income
-  - [ ] 5.3.9 Integrate map with Streamlit using streamlit-folium
+- [x] 5.3 Implement map visualization
+  - [x] 5.3.1 Create `src/dashboard/map_renderer.py` module
+  - [x] 5.3.2 Implement `create_choropleth_map()` function using Folium
+  - [x] 5.3.3 Add color scale for accessibility scores (RdYlGn colormap)
+  - [x] 5.3.4 Add color scale for median income (YlOrRd colormap)
+  - [x] 5.3.5 Implement tooltips showing block group details (geoid, population, income, score)
+  - [x] 5.3.6 Add map legend explaining color scales
+  - [x] 5.3.7 Add OpenStreetMap attribution in map footer
+  - [x] 5.3.8 Implement layer toggle between Accessibility Score and Median Income
+  - [x] 5.3.9 Integrate map with Streamlit using streamlit-folium
 
-- [ ] 5.4 Implement metrics calculation
-  - [ ] 5.4.1 Create `src/dashboard/metrics.py` module
-  - [ ] 5.4.2 Implement `calculate_equity_metrics()` function
-  - [ ] 5.4.3 Calculate percentage of population in low-access areas (score < 40)
-  - [ ] 5.4.4 Calculate percentage of low-income population in low-access areas
-  - [ ] 5.4.5 Calculate average accessibility score by income quartile
-  - [ ] 5.4.6 Calculate total number of block groups analyzed
-  - [ ] 5.4.7 Calculate median accessibility score
-  - [ ] 5.4.8 Calculate Gini coefficient for accessibility distribution (optional)
+- [x] 5.4 Implement metrics calculation
+  - [x] 5.4.1 Create `src/dashboard/metrics.py` module
+  - [x] 5.4.2 Implement `calculate_equity_metrics()` function
+  - [x] 5.4.3 Calculate percentage of population in low-access areas (score < 40)
+  - [x] 5.4.4 Calculate percentage of low-income population in low-access areas
+  - [x] 5.4.5 Calculate average accessibility score by income quartile
+  - [x] 5.4.6 Calculate total number of block groups analyzed
+  - [x] 5.4.7 Calculate median accessibility score
+  - [x] 5.4.8 Calculate Gini coefficient for accessibility distribution (optional)
 
-- [ ] 5.5 Implement sidebar controls
-  - [ ] 5.5.1 Add layer toggle radio buttons (Accessibility Score / Median Income)
-  - [ ] 5.5.2 Add income threshold slider (range: $0–$200k, location-adjusted default): compute the slider's initial value as `default_threshold = clamp(city_median_income * DEFAULT_RATIO, 0, 200_000)` where `city_median_income` is the median of the `median_income` column in the loaded GeoParquet data and `DEFAULT_RATIO = 0.5` (configurable). Display the computed default value in the slider tooltip (e.g., "Default: $47,500 — 50 % of city median income"). Fall back to $50,000 if `city_median_income` is unavailable or zero.
-  - [ ] 5.5.3 Add accessibility score range slider (range: 0-100, default: 0-100)
-  - [ ] 5.5.4 Add population density filter slider (optional)
-  - [ ] 5.5.5 Add "Reset Filters" button
-  - [ ] 5.5.6 Display current filter values
+- [x] 5.5 Implement sidebar controls
+  - [x] 5.5.1 Add layer toggle radio buttons (Accessibility Score / Median Income)
+  - [x] 5.5.2 Add income threshold slider (range: $0–$200k, location-adjusted default): compute the slider's initial value as `default_threshold = clamp(city_median_income * DEFAULT_RATIO, 0, 200_000)` where `city_median_income` is the median of the `median_income` column in the loaded GeoParquet data and `DEFAULT_RATIO = 0.5` (configurable). Display the computed default value in the slider tooltip (e.g., "Default: $47,500 — 50 % of city median income"). Fall back to $50,000 if `city_median_income` is unavailable or zero.
+  - [x] 5.5.3 Add accessibility score range slider (range: 0-100, default: 0-100)
+  - [x] 5.5.4 Add population density filter slider (optional)
+  - [x] 5.5.5 Add "Reset Filters" button
+  - [x] 5.5.6 Display current filter values
 
-- [ ] 5.6 Implement metrics panel
-  - [ ] 5.6.1 Create metrics display in sidebar or main columns
-  - [ ] 5.6.2 Display percentage of population in low-access areas with st.metric()
-  - [ ] 5.6.3 Display percentage of low-income population in low-access areas
-  - [ ] 5.6.4 Display average accessibility score by income quartile (bar chart)
-  - [ ] 5.6.5 Display total block groups analyzed
-  - [ ] 5.6.6 Add delta indicators showing change from city average
+- [x] 5.6 Implement metrics panel
+  - [x] 5.6.1 Create metrics display in sidebar or main columns
+  - [x] 5.6.2 Display percentage of population in low-access areas with st.metric()
+  - [x] 5.6.3 Display percentage of low-income population in low-access areas
+  - [x] 5.6.4 Display average accessibility score by income quartile (bar chart)
+  - [x] 5.6.5 Display total block groups analyzed
+  - [x] 5.6.6 Add delta indicators showing change from city average
 
-- [ ] 5.7 Implement filtering logic
-  - [ ] 5.7.1 Create `src/dashboard/filters.py` module
-  - [ ] 5.7.2 Implement `apply_income_filter()` function
-  - [ ] 5.7.3 Implement `apply_score_filter()` function
-  - [ ] 5.7.4 Implement `apply_all_filters()` function to combine filters
-  - [ ] 5.7.5 Update map and metrics when filters change
-  - [ ] 5.7.6 Add filter summary text showing number of block groups displayed
+- [x] 5.7 Implement filtering logic
+  - [x] 5.7.1 Create `src/dashboard/filters.py` module
+  - [x] 5.7.2 Implement `apply_income_filter()` function
+  - [x] 5.7.3 Implement `apply_score_filter()` function
+  - [x] 5.7.4 Implement `apply_all_filters()` function to combine filters
+  - [x] 5.7.5 Update map and metrics when filters change
+  - [x] 5.7.6 Add filter summary text showing number of block groups displayed
 
 ## 6. Testing
 

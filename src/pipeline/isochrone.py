@@ -53,7 +53,7 @@ def _get_graph_crs(graph: nx.MultiDiGraph) -> Any:
     Prefers graph.graph.get("crs") as the primary source of truth, falling back
     to "EPSG:4326" if missing.
     """
-    return graph.graph.get("crs", "EPSG:4326")
+    return graph.graph.get("crs") or "EPSG:4326"
 
 
 def calculate_isochrone(
@@ -250,9 +250,14 @@ def calculate_all_isochrones(
                         logger.info(
                             f"Isochrone progress: {completed}/{len(tasks)}"
                         )
-                    result = future.result()
-                    if result is not None:
-                        results.append(result)
+                    try:
+                        result = future.result()
+                        if result is not None:
+                            results.append(result)
+                    except Exception as e:
+                        logger.warning(
+                            f"Individual isochrone task failed: {e}"
+                        )
 
         except Exception as e:
             logger.warning(
