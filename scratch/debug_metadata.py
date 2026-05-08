@@ -13,6 +13,9 @@ try:
 except Exception as e:
     print(f"Failed with custom_metadata: {type(e).__name__}: {e}")
 
+if os.path.exists("test.parquet"):
+    os.remove("test.parquet")
+
 try:
     print("Trying metadata...")
     gdf.to_parquet("test.parquet", metadata={"test": "data"})

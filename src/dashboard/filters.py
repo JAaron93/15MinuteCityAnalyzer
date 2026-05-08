@@ -27,7 +27,12 @@ def apply_all_filters(
     if not isinstance(income_threshold, (int, float)):
         raise TypeError("income_threshold must be numeric.")
 
-    income_threshold = max(0.0, min(float(income_threshold), MAX_INCOME_THRESHOLD))
+    income_threshold = float(income_threshold)
+    if income_threshold < 0.0 or income_threshold > MAX_INCOME_THRESHOLD:
+        raise ValueError(
+            f"income_threshold must be between 0.0 and {MAX_INCOME_THRESHOLD}, "
+            f"got {income_threshold}"
+        )
 
     filtered_df = filtered_df[filtered_df["median_income"] <= income_threshold]
 
@@ -43,7 +48,9 @@ def apply_all_filters(
         raise TypeError("score_range values must be numeric.") from e
 
     if min_score > max_score:
-        min_score, max_score = max_score, min_score
+        raise ValueError(
+            f"score_range min_score ({min_score}) must be <= max_score ({max_score})"
+        )
 
     # Score filter
     filtered_df = filtered_df[

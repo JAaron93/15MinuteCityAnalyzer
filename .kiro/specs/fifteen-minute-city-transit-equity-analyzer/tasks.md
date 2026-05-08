@@ -227,12 +227,12 @@
   - [x] 6.2.11 Test equity category assignment: verify `ThresholdConfigError` raised when `high_access_min ≤ medium_access_min` or either outside [0,100]; verify percentile check logs WARNING and records WARN/PASS in metadata; verify sensitivity test computes stability for ±5 shifts and records WARN/PASS; verify all seven `equity_thresholds.*` metadata fields written to GeoParquet
   - [x] 6.2.12 Test equity category assignment reads thresholds from config rather than hard-coded values
 
-- [ ] 6.3 Unit tests for data validation
-  - [ ] 6.3.1 Create `tests/test_validators.py`
-  - [ ] 6.3.2 Test geometry validation with valid and invalid geometries
-  - [ ] 6.3.3 Test CRS validation
-  - [ ] 6.3.4 Test demographic data validation
-  - [ ] 6.3.5 Test geometry repair function
+- [x] 6.3 Unit tests for data validation
+  - [x] 6.3.1 Create `tests/test_validators.py`
+  - [x] 6.3.2 Test geometry validation with valid and invalid geometries
+  - [x] 6.3.3 Test CRS validation
+  - [x] 6.3.4 Test demographic data validation
+  - [x] 6.3.5 Test geometry repair function
 
 - [x] 6.4 Unit tests for dashboard components
   - [x] 6.4.1 Create `tests/test_data_loader.py`

@@ -1,16 +1,17 @@
 import pytest
-import os
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
-from src.dashboard.data_loader import load_geoparquet
+from src.dashboard.data_loader import load_geoparquet, ValidationError
+
 
 def test_load_geoparquet_file_not_found(mocker):
-    mocker.patch("os.path.exists", return_value=False)
+    mocker.patch("src.dashboard.data_loader.os.path.exists", return_value=False)
     with pytest.raises(FileNotFoundError, match="Processed data not found"):
         load_geoparquet("nonexistent.parquet")
 
-def test_load_geoparquet_missing_columns(mocker, tmp_path):
+
+def test_load_geoparquet_missing_columns(tmp_path):
     # Create a dummy geoparquet file with missing columns
     file_path = tmp_path / "missing_cols.parquet"
     df = pd.DataFrame({
@@ -21,11 +22,12 @@ def test_load_geoparquet_missing_columns(mocker, tmp_path):
     })
     gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
     gdf.to_parquet(file_path)
-    
-    with pytest.raises(ValueError, match="Missing required columns"):
+
+    with pytest.raises(ValidationError, match="Missing required columns"):
         load_geoparquet(str(file_path))
 
-def test_load_geoparquet_success(mocker, tmp_path):
+
+def test_load_geoparquet_success(tmp_path):
     file_path = tmp_path / "valid.parquet"
     df = pd.DataFrame({
         "geoid": ["1"],
@@ -38,15 +40,15 @@ def test_load_geoparquet_success(mocker, tmp_path):
     })
     gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
     gdf.to_parquet(file_path)
-    
-    mocker.patch("os.path.exists", return_value=True)
+
     loaded_gdf = load_geoparquet(str(file_path))
-    
+
     assert len(loaded_gdf) == 1
     assert "accessibility_score" in loaded_gdf.columns
     assert loaded_gdf.crs.to_epsg() == 4326
 
-def test_load_geoparquet_reprojection(mocker, tmp_path):
+
+def test_load_geoparquet_reprojection(tmp_path):
     file_path = tmp_path / "reproject.parquet"
     df = pd.DataFrame({
         "geoid": ["1"],
@@ -60,8 +62,7 @@ def test_load_geoparquet_reprojection(mocker, tmp_path):
     # Create with different CRS
     gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:3857")
     gdf.to_parquet(file_path)
-    
-    mocker.patch("os.path.exists", return_value=True)
+
     loaded_gdf = load_geoparquet(str(file_path))
-    
+
     assert loaded_gdf.crs.to_epsg() == 4326

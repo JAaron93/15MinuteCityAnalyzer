@@ -58,6 +58,8 @@ class DataValidator:
         if not null_geoms.empty:
             logger.warning(f"Found {len(null_geoms)} OSM rows with null geometry. Dropping them.")
             df.dropna(subset=["geometry"], inplace=True)
+        
+        return True
 
     @staticmethod
     def validate_crs(df: gpd.GeoDataFrame, expected_crs: str = "EPSG:4326") -> bool:

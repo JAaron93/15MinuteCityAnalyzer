@@ -55,8 +55,7 @@ def create_mock_data():
         df['accessibility_score'],
         bins=[0, 40, 70, 100],
         labels=["Low Access", "Medium Access", "High Access"],
-        include_lowest=True,
-        right=False
+        include_lowest=True
     )
     
     gdf = gpd.GeoDataFrame(df, geometry=geometries, crs="EPSG:4326")

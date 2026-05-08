@@ -1,14 +1,23 @@
+import inspect
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import geopandas as gpd
+import pyarrow.parquet as pq
+
 
 logger = logging.getLogger(__name__)
+
+
+class FileSizeLimitError(RuntimeError):
+    """Raised when the exported file size exceeds the limit."""
+    pass
+
 
 def export_to_geoparquet(
     df: gpd.GeoDataFrame,
     output_path: str,
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 ) -> None:
     """
     Exports the GeoDataFrame to a GeoParquet file with snappy compression.
@@ -28,9 +37,8 @@ def export_to_geoparquet(
     # Custom metadata can be passed to PyArrow if needed, but GeoPandas
     # to_parquet handles basic saving. For custom metadata, we might need
     # pyarrow directly, but for now we rely on pandas/geopandas capabilities.
-    # We'll just write it out.
-    # The spec mentions adding metadata to GeoParquet file (processing date, params, etc)
-    # GeoPandas 0.13+ supports custom_metadata in to_parquet
+    # The spec mentions adding metadata to GeoParquet file (processing date,
+    # params, etc). GeoPandas 0.13+ supports custom_metadata in to_parquet.
 
     export_kwargs = {
         "path": output_path,
@@ -43,16 +51,26 @@ def export_to_geoparquet(
         str_metadata = {k: str(v) for k, v in metadata.items()}
         export_kwargs["custom_metadata"] = str_metadata
 
+    # Check if underlying ParquetWriter supports custom_metadata
+    # (capability check)
+    writer_params = inspect.signature(pq.ParquetWriter.__init__).parameters
+    if "custom_metadata" in export_kwargs and \
+       "custom_metadata" not in writer_params:
+        logger.warning(
+            "Custom metadata not supported by this pyarrow version. "
+            "Removing from export_kwargs."
+        )
+        export_kwargs.pop("custom_metadata")
+
     # 1. Base export
     try:
         df.to_parquet(**export_kwargs)
-    except TypeError as e:
-        if "custom_metadata" in str(e):
-            logger.warning("Custom metadata not supported by this pyarrow/geopandas version. Exporting without metadata.")
-            export_kwargs.pop("custom_metadata", None)
-            df.to_parquet(**export_kwargs)
-        else:
-            raise
+    except TypeError:
+        # If we still get a TypeError, it's unexpected
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during export: {e}")
+        raise
 
     # Validate size
     import os
@@ -62,22 +80,34 @@ def export_to_geoparquet(
     if size_mb <= 50:
         return
 
-    logger.warning("File size exceeds 50 MB limit. Attempting remediation...")
+    logger.warning(
+        "File size exceeds 50 MB limit. Attempting remediation..."
+    )
 
     # Remediation 1: Simplification
     tolerances = [0.0001, 0.0005, 0.001]
     for tol in tolerances:
         logger.info(f"Simplifying geometries with tolerance {tol}...")
         df_simplified = df.copy()
-        df_simplified.geometry = df_simplified.geometry.simplify(tol, preserve_topology=True)
+        df_simplified.geometry = df_simplified.geometry.simplify(
+            tol, preserve_topology=True
+        )
         df_simplified.to_parquet(**export_kwargs)
 
         size_mb = os.path.getsize(output_path) / (1024 * 1024)
-        logger.info(f"File size after simplification (tol={tol}): {size_mb:.2f} MB")
+        logger.info(
+            f"File size after simplification (tol={tol}): {size_mb:.2f} MB"
+        )
 
         if size_mb <= 50:
             return
 
     # Remediation 2: Spatial chunking (placeholder, as per spec)
-    logger.warning("Simplification insufficient. Needs spatial chunking (not fully implemented).")
-    raise Exception(f"FileSizeLimitError: File size {size_mb:.2f} MB exceeds 50 MB after all simplification steps.")
+    logger.warning(
+        "Simplification insufficient. Needs spatial chunking "
+        "(not fully implemented)."
+    )
+    raise FileSizeLimitError(
+        f"File size {size_mb:.2f} MB exceeds 50 MB "
+        "after all simplification steps."
+    )

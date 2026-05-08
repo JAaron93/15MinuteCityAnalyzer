@@ -9,6 +9,9 @@ from src.dashboard.filters import apply_all_filters
 from src.dashboard.map_renderer import create_choropleth_map
 from src.dashboard.metrics import calculate_equity_metrics
 
+# Constants
+CITY_MEDIAN_INCOME_FALLBACK = 100000
+
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -79,7 +82,8 @@ try:
     # Income Slider
     city_median_income = gdf["median_income"].median()
     if pd.isna(city_median_income) or city_median_income <= 0:
-        city_median_income = 100000  # fallback for missing/invalid data
+        city_median_income = CITY_MEDIAN_INCOME_FALLBACK  # fallback for missing/invalid data
+        logger.warning(f"Using fallback city median income: {CITY_MEDIAN_INCOME_FALLBACK}")
     # default_threshold = 50% of city median, clamped to [0, 200k]
     default_income_threshold = min(max(city_median_income * 0.5, 0), 200000)
 
@@ -156,13 +160,16 @@ try:
         st.write("### Score Distribution")
         st.write("Distribution of accessibility scores across the filtered areas.")
         if not filtered_gdf.empty:
-            # Bin continuous scores into 10 ranges (e.g., 0-10, 10-20)
-            # for clearer distribution visualization
-            bins = pd.cut(filtered_gdf["accessibility_score"], bins=10)
-            hist_data = bins.value_counts().sort_index()
-            # Use string labels for the intervals to ensure proper display on the x-axis
-            hist_data.index = hist_data.index.astype(str)
-            st.bar_chart(hist_data)
+            try:
+                # Bin continuous scores into 10 ranges (e.g., 0-10, 10-20)
+                # for clearer distribution visualization
+                bins = pd.cut(filtered_gdf["accessibility_score"], bins=10)
+                hist_data = bins.value_counts().sort_index()
+                # Use string labels for the intervals to ensure proper display on the x-axis
+                hist_data.index = hist_data.index.astype(str)
+                st.bar_chart(hist_data)
+            except ValueError:
+                st.info("Insufficient variance in scores for distribution chart.")
         else:
             st.info("No data available for score distribution.")
 

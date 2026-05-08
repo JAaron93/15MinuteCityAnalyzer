@@ -1,6 +1,7 @@
 import branca.colormap as cm
 import folium
 import geopandas as gpd
+import pandas as pd
 
 
 def create_choropleth_map(
@@ -22,7 +23,9 @@ def create_choropleth_map(
     # Centroid for initial view
     centroid = data.geometry.unary_union.centroid
     m = folium.Map(
-        location=[centroid.y, centroid.x], zoom_start=12, tiles="CartoDB positron"
+        location=[centroid.y, centroid.x],
+        zoom_start=12,
+        tiles="CartoDB positron"
     )
 
     # Define colormap
@@ -41,9 +44,10 @@ def create_choropleth_map(
     else:  # median_income
         vmin = data["median_income"].min(skipna=True)
         vmax = data["median_income"].max(skipna=True)
+        if pd.isna(vmin) or pd.isna(vmax):
+            raise ValueError("All median_income values are null")
         if vmin == vmax:
             vmax = vmin + 1  # Avoid division by zero in gradient
-
         colormap = cm.LinearColormap(
             colors=["#f7fbff", "#08306b"],  # Blue scale
             vmin=vmin,

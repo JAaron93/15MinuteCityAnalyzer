@@ -37,7 +37,8 @@ def test_validate_osm_data_basic():
         "geometry": [Point(0, 0)]
     })
     gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
-    validator.validate_osm_data(gdf)
+    result = validator.validate_osm_data(gdf)
+    assert result is True
     assert len(gdf) == 1
 
 def test_validate_crs_none():
@@ -65,4 +66,4 @@ def test_validate_demographics():
     })
     gdf = gpd.GeoDataFrame(df)
     assert validator.validate_demographics(gdf) is True
-    assert gdf["population"][1] == 0
+    assert gdf.loc[1, "population"] == 0

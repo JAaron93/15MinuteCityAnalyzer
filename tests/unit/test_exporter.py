@@ -3,12 +3,13 @@ import os
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point, box
-from src.pipeline.exporter import export_to_geoparquet
+from src.pipeline.exporter import export_to_geoparquet, FileSizeLimitError
 
 def test_export_to_geoparquet_empty(tmp_path, caplog):
     output_path = tmp_path / "empty.parquet"
     export_to_geoparquet(gpd.GeoDataFrame(), str(output_path))
     assert "Empty GeoDataFrame, skipping export" in caplog.text
+    assert not os.path.exists(output_path)
 
 def test_export_to_geoparquet_success(tmp_path):
     output_path = tmp_path / "test.parquet"
@@ -68,5 +69,5 @@ def test_export_to_geoparquet_file_size_error(tmp_path, mocker):
     # Always return > 50 MB
     mocker.patch("os.path.getsize", return_value=60 * 1024 * 1024)
     
-    with pytest.raises(Exception, match="FileSizeLimitError"):
+    with pytest.raises(FileSizeLimitError):
         export_to_geoparquet(gdf, str(output_path))
