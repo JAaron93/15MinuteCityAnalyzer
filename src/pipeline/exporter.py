@@ -44,7 +44,15 @@ def export_to_geoparquet(
         export_kwargs["custom_metadata"] = str_metadata
 
     # 1. Base export
-    df.to_parquet(**export_kwargs)
+    try:
+        df.to_parquet(**export_kwargs)
+    except TypeError as e:
+        if "custom_metadata" in str(e):
+            logger.warning("Custom metadata not supported by this pyarrow/geopandas version. Exporting without metadata.")
+            export_kwargs.pop("custom_metadata", None)
+            df.to_parquet(**export_kwargs)
+        else:
+            raise
 
     # Validate size
     import os

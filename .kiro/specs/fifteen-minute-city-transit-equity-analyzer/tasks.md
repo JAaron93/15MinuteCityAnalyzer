@@ -198,34 +198,34 @@
 
 ## 6. Testing
 
-- [ ] 6.1 Unit tests for data acquisition
-  - [ ] 6.1.1 Create `tests/test_census_fetcher.py`
-  - [ ] 6.1.2 Test `fetch_block_groups()` with mock Census API responses
-  - [ ] 6.1.3 Test `fetch_demographics()` with mock data
-  - [ ] 6.1.4 Test retry logic with simulated API failures
-  - [ ] 6.1.5 Test error handling for invalid city names
-  - [ ] 6.1.6 Create `tests/test_osm_fetcher.py`
-  - [ ] 6.1.7 Test `fetch_amenities()` with mock OSM data
-  - [ ] 6.1.8 Test `fetch_street_network()` with sample bounding box
-  - [ ] 6.1.9 Test bounding box calculation
-  - [ ] 6.1.10 Test bbox validation: verify `BoundingBoxTooLargeError` raised when edge > 1.0° or area > 0.5 sq°; verify valid bbox passes
-  - [ ] 6.1.11 Test bbox tiling: verify nx×ny grid produces tiles within size limits; verify point dedup keeps first-occurrence by `osm_id`; verify polygon union reconstructs split geometries; verify edge rejoining reconnects split network edges within 1e-6° tolerance; verify `TilingFailureError` raised when skip fraction > failure_threshold; verify skipped tile IDs written to GeoParquet metadata
-  - [ ] 6.1.12 Test multi-county Census queries: verify county FIPS codes are derived by bbox-polygon intersection; verify per-county queries are issued; verify `geoid` deduplication keeps first-occurrence (lowest county FIPS) and logs WARNING for conflicting attribute values; verify WARNING logged for missing county; verify `CensusDataUnavailableError` raised with full `(state_fips, county_fips)` list when all counties return no data
-  - [ ] 6.1.13 Test retry policy: verify per-request timeout enforced; verify 60 s hard cap cancels in-flight request and stops retries; verify backoff delays match formula with jitter; verify HTTP 400/401/403/404 raise immediately without retry; verify 5xx triggers retry; verify 429 with `Retry-After` header uses header value as delay; verify 429 without header uses computed backoff
+- [x] 6.1 Unit tests for data acquisition
+  - [x] 6.1.1 Create `tests/test_census_fetcher.py`
+  - [x] 6.1.2 Test `fetch_block_groups()` with mock Census API responses
+  - [x] 6.1.3 Test `fetch_demographics()` with mock data
+  - [x] 6.1.4 Test retry logic with simulated API failures
+  - [x] 6.1.5 Test error handling for invalid city names
+  - [x] 6.1.6 Create `tests/test_osm_fetcher.py`
+  - [x] 6.1.7 Test `fetch_amenities()` with mock OSM data
+  - [x] 6.1.8 Test `fetch_street_network()` with sample bounding box
+  - [x] 6.1.9 Test bounding box calculation
+  - [x] 6.1.10 Test bbox validation: verify `BoundingBoxTooLargeError` raised when edge > 1.0° or area > 0.5 sq°; verify valid bbox passes
+  - [x] 6.1.11 Test bbox tiling: verify nx×ny grid produces tiles within size limits; verify point dedup keeps first-occurrence by `osm_id`; verify polygon union reconstructs split geometries; verify edge rejoining reconnects split network edges within 1e-6° tolerance; verify `TilingFailureError` raised when skip fraction > failure_threshold; verify skipped tile IDs written to GeoParquet metadata
+  - [x] 6.1.12 Test multi-county Census queries: verify county FIPS codes are derived by bbox-polygon intersection; verify per-county queries are issued; verify `geoid` deduplication keeps first-occurrence (lowest county FIPS) and logs WARNING for conflicting attribute values; verify WARNING logged for missing county; verify `CensusDataUnavailableError` raised with full `(state_fips, county_fips)` list when all counties return no data
+  - [x] 6.1.13 Test retry policy: verify per-request timeout enforced; verify 60 s hard cap cancels in-flight request and stops retries; verify backoff delays match formula with jitter; verify HTTP 400/401/403/404 raise immediately without retry; verify 5xx triggers retry; verify 429 with `Retry-After` header uses header value as delay; verify 429 without header uses computed backoff
 
-- [ ] 6.2 Unit tests for spatial analysis
-  - [ ] 6.2.1 Create `tests/test_crs_utils.py`
-  - [ ] 6.2.2 Test `determine_utm_zone()` with known coordinates
-  - [ ] 6.2.3 Test CRS transformations with sample geometries
-  - [ ] 6.2.4 Create `tests/test_isochrone.py`
-  - [ ] 6.2.5 Test isochrone generation with synthetic network
-  - [ ] 6.2.6 Test parallel processing of isochrones
-  - [ ] 6.2.7 Create `tests/test_scoring.py`
-  - [ ] 6.2.8 Test spatial join with synthetic geometries: verify area-overlap threshold filter correctly includes/excludes block groups at/below `MIN_OVERLAP_FRACTION`
-  - [ ] 6.2.9 Test `raw_score` computation: verify correct capped weighted sum with known inputs including `other_count`; verify caps are applied correctly; verify `raw_score` is stored as a separate column in output
-  - [ ] 6.2.10 Test score normalization: verify `accessibility_score = 100*(raw-min)/(max-min)`; verify `city_max == city_min` edge-case assigns 50 to all records and logs WARNING
-  - [ ] 6.2.11 Test equity category assignment: verify `ThresholdConfigError` raised when `high_access_min ≤ medium_access_min` or either outside [0,100]; verify percentile check logs WARNING and records WARN/PASS in metadata; verify sensitivity test computes stability for ±5 shifts and records WARN/PASS; verify all seven `equity_thresholds.*` metadata fields written to GeoParquet
-  - [ ] 6.2.12 Test equity category assignment reads thresholds from config rather than hard-coded values
+- [x] 6.2 Unit tests for spatial analysis
+  - [x] 6.2.1 Create `tests/test_crs_utils.py`
+  - [x] 6.2.2 Test `determine_utm_zone()` with known coordinates
+  - [x] 6.2.3 Test CRS transformations with sample geometries
+  - [x] 6.2.4 Create `tests/test_isochrone.py`
+  - [x] 6.2.5 Test isochrone generation with synthetic network
+  - [x] 6.2.6 Test parallel processing of isochrones
+  - [x] 6.2.7 Create `tests/test_scoring.py`
+  - [x] 6.2.8 Test spatial join with synthetic geometries: verify area-overlap threshold filter correctly includes/excludes block groups at/below `MIN_OVERLAP_FRACTION`
+  - [x] 6.2.9 Test `raw_score` computation: verify correct capped weighted sum with known inputs including `other_count`; verify caps are applied correctly; verify `raw_score` is stored as a separate column in output
+  - [x] 6.2.10 Test score normalization: verify `accessibility_score = 100*(raw-min)/(max-min)`; verify `city_max == city_min` edge-case assigns 50 to all records and logs WARNING
+  - [x] 6.2.11 Test equity category assignment: verify `ThresholdConfigError` raised when `high_access_min ≤ medium_access_min` or either outside [0,100]; verify percentile check logs WARNING and records WARN/PASS in metadata; verify sensitivity test computes stability for ±5 shifts and records WARN/PASS; verify all seven `equity_thresholds.*` metadata fields written to GeoParquet
+  - [x] 6.2.12 Test equity category assignment reads thresholds from config rather than hard-coded values
 
 - [ ] 6.3 Unit tests for data validation
   - [ ] 6.3.1 Create `tests/test_validators.py`
@@ -234,16 +234,16 @@
   - [ ] 6.3.4 Test demographic data validation
   - [ ] 6.3.5 Test geometry repair function
 
-- [ ] 6.4 Unit tests for dashboard components
-  - [ ] 6.4.1 Create `tests/test_data_loader.py`
-  - [ ] 6.4.2 Test GeoParquet loading with sample file
-  - [ ] 6.4.3 Test error handling for missing file
-  - [ ] 6.4.4 Create `tests/test_metrics.py`
-  - [ ] 6.4.5 Test equity metrics calculation with sample data
-  - [ ] 6.4.6 Create `tests/test_filters.py`
-  - [ ] 6.4.7 Test income filter with sample data
-  - [ ] 6.4.8 Test score filter with sample data
-  - [ ] 6.4.9 Test combined filters
+- [x] 6.4 Unit tests for dashboard components
+  - [x] 6.4.1 Create `tests/test_data_loader.py`
+  - [x] 6.4.2 Test GeoParquet loading with sample file
+  - [x] 6.4.3 Test error handling for missing file
+  - [x] 6.4.4 Create `tests/test_metrics.py`
+  - [x] 6.4.5 Test equity metrics calculation with sample data
+  - [x] 6.4.6 Create `tests/test_filters.py`
+  - [x] 6.4.7 Test income filter with sample data
+  - [x] 6.4.8 Test score filter with sample data
+  - [x] 6.4.9 Test combined filters
 
 - [ ] 6.5 Property-based tests
   - [ ] 6.5.1 Create `tests/test_properties.py`

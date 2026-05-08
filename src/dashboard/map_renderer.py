@@ -16,6 +16,9 @@ def create_choropleth_map(
     Returns:
         folium.Map: The Folium map object.
     """
+    if data.empty:
+        raise ValueError("Cannot create map from empty dataset")
+
     # Centroid for initial view
     centroid = data.geometry.unary_union.centroid
     m = folium.Map(
@@ -32,11 +35,15 @@ def create_choropleth_map(
         )
 
         def fill_color_fn(x):
-            return colormap(x["properties"]["accessibility_score"])
+            score = x["properties"].get("accessibility_score", 0)
+            return colormap(score)
 
     else:  # median_income
-        vmin = data["median_income"].min()
-        vmax = data["median_income"].max()
+        vmin = data["median_income"].min(skipna=True)
+        vmax = data["median_income"].max(skipna=True)
+        if vmin == vmax:
+            vmax = vmin + 1  # Avoid division by zero in gradient
+
         colormap = cm.LinearColormap(
             colors=["#f7fbff", "#08306b"],  # Blue scale
             vmin=vmin,
@@ -45,7 +52,8 @@ def create_choropleth_map(
         )
 
         def fill_color_fn(x):
-            return colormap(x["properties"]["median_income"])
+            income = x["properties"].get("median_income", vmin)
+            return colormap(income)
 
     # Add GeoJson with tooltips
     folium.GeoJson(
@@ -77,14 +85,5 @@ def create_choropleth_map(
 
     # Add colormap to map
     colormap.add_to(m)
-
-    # Add attribution
-    folium.TileLayer(
-        tiles="OpenStreetMap",
-        attr=(
-            '&copy; <a href="https://www.openstreetmap.org/copyright">'
-            "OpenStreetMap</a> contributors"
-        ),
-    ).add_to(m)
 
     return m

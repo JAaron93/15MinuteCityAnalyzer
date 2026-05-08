@@ -49,11 +49,14 @@ def load_geoparquet(file_path: str) -> gpd.GeoDataFrame:
         if gdf.crs is None:
             logger.warning("Dataset missing CRS, assuming EPSG:4326")
             gdf.set_crs("EPSG:4326", inplace=True)
-        elif gdf.crs != "EPSG:4326":
+        elif gdf.crs.to_epsg() != 4326:
             logger.info(f"Reprojecting from {gdf.crs} to EPSG:4326")
             gdf = gdf.to_crs("EPSG:4326")
 
         return gdf
+    except ValueError:
+        # Re-raise validation errors as-is
+        raise
     except Exception as e:
         logger.error(f"Error loading GeoParquet: {str(e)}")
         raise ValueError(f"Failed to load processed data: {str(e)}") from e

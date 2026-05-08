@@ -1,5 +1,9 @@
+import logging
+
 import geopandas as gpd
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_equity_metrics(
@@ -9,7 +13,11 @@ def calculate_equity_metrics(
     Calculate high-level equity KPIs.
 
     Args:
-        data (gpd.GeoDataFrame): The processed dataset.
+        data (gpd.GeoDataFrame): The processed dataset. Expected columns:
+            - population: Population count per block group
+            - equity_category: Equity category (e.g., "Low Access")
+            - median_income: Median income per block group
+            - accessibility_score: Accessibility score per block group
         income_threshold (float): Threshold to define 'low-income'.
 
     Returns:
@@ -25,6 +33,16 @@ def calculate_equity_metrics(
             "median_accessibility_score": 0.0,
             "city_avg_score": 0.0,
         }
+
+    required_columns = [
+        "population",
+        "equity_category",
+        "median_income",
+        "accessibility_score",
+    ]
+    missing_columns = [col for col in required_columns if col not in data.columns]
+    if missing_columns:
+        raise ValueError(f"Missing required columns: {missing_columns}")
 
     total_pop = data["population"].sum()
     low_access = data[data["equity_category"] == "Low Access"]
@@ -69,7 +87,14 @@ def calculate_equity_metrics(
             )
         else:
             avg_score_by_quartile = {}
-    except Exception:
+    except (ValueError, KeyError) as e:
+        logger.warning(
+            "Failed to calculate income quartile metrics. "
+            "Data shape: %s, Columns: %s. Error: %s",
+            data.shape,
+            list(data.columns),
+            str(e),
+        )
         avg_score_by_quartile = {}
 
     return {

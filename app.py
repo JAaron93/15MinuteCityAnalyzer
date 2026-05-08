@@ -35,17 +35,13 @@ st.markdown(
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     .footer {
-        position: fixed;
-        left: 0;
-        bottom: 0;
-        width: 100%;
         background-color: white;
         color: #6c757d;
         text-align: center;
         padding: 10px;
         font-size: 0.8rem;
         border-top: 1px solid #dee2e6;
-        z-index: 1000;
+        margin-top: 50px;
     }
     </style>
     """,
@@ -82,6 +78,8 @@ try:
 
     # Income Slider
     city_median_income = gdf["median_income"].median()
+    if pd.isna(city_median_income) or city_median_income <= 0:
+        city_median_income = 100000  # fallback for missing/invalid data
     # default_threshold = 50% of city median, clamped to [0, 200k]
     default_income_threshold = min(max(city_median_income * 0.5, 0), 200000)
 
@@ -115,13 +113,19 @@ try:
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("Block Groups", f"{metrics['total_block_groups']}")
+        st.metric("Block Groups", f"{metrics.get('total_block_groups', 0)}")
     with col2:
-        st.metric("Total Population", f"{metrics['total_population']:,.0f}")
+        st.metric("Total Population", f"{metrics.get('total_population', 0):,.0f}")
     with col3:
-        st.metric("Low Access Pop %", f"{metrics['pct_pop_low_access']:.1f}%")
+        st.metric(
+            "Low Access Pop %",
+            f"{metrics.get('pct_pop_low_access', 0.0):.1f}%",
+        )
     with col4:
-        st.metric("Low Income/Access %", f"{metrics['pct_low_income_low_access']:.1f}%")
+        st.metric(
+            "Low Income/Access %",
+            f"{metrics.get('pct_low_income_low_access', 0.0):.1f}%",
+        )
 
     # Main Map View
     st.subheader(f"Interactive Map: {map_layer}")
@@ -152,8 +156,13 @@ try:
         st.write("### Score Distribution")
         st.write("Distribution of accessibility scores across the filtered areas.")
         if not filtered_gdf.empty:
-            hist_data = filtered_gdf["accessibility_score"]
-            st.bar_chart(hist_data.value_counts().sort_index())
+            # Bin continuous scores into 10 ranges (e.g., 0-10, 10-20)
+            # for clearer distribution visualization
+            bins = pd.cut(filtered_gdf["accessibility_score"], bins=10)
+            hist_data = bins.value_counts().sort_index()
+            # Use string labels for the intervals to ensure proper display on the x-axis
+            hist_data.index = hist_data.index.astype(str)
+            st.bar_chart(hist_data)
         else:
             st.info("No data available for score distribution.")
 

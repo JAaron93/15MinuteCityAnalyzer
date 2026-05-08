@@ -26,14 +26,18 @@ def create_mock_data():
     
     df = pd.DataFrame(data)
     
-    # Calculate raw_score: 0.35*min(g,5) + 0.30*min(h,3) + 0.25*min(t,10) + 0.10*min(o,5)
-    def calc_raw(row):
-        return (0.35 * min(row['grocery_count'], 5) + 
-                0.30 * min(row['healthcare_count'], 3) + 
-                0.25 * min(row['transit_count'], 10) + 
-                0.10 * min(row['other_count'], 5))
+    if len(geometries) != len(df):
+        raise ValueError(
+            f"Mismatch between geometries ({len(geometries)}) and data rows ({len(df)})"
+        )
     
-    df['raw_score'] = df.apply(calc_raw, axis=1)
+    # Calculate raw_score: 0.35*min(g,5) + 0.30*min(h,3) + 0.25*min(t,10) + 0.10*min(o,5)
+    df['raw_score'] = (
+        0.35 * df['grocery_count'].clip(upper=5) +
+        0.30 * df['healthcare_count'].clip(upper=3) +
+        0.25 * df['transit_count'].clip(upper=10) +
+        0.10 * df['other_count'].clip(upper=5)
+    )
     
     # Normalize (0-100)
     city_min = df['raw_score'].min()
@@ -47,18 +51,20 @@ def create_mock_data():
     df['total_amenities'] = df['grocery_count'] + df['healthcare_count'] + df['transit_count'] + df['other_count']
     
     # Equity category (default thresholds: 70, 40)
-    def assign_cat(score):
-        if score >= 70: return "High Access"
-        if score >= 40: return "Medium Access"
-        return "Low Access"
-    
-    df['equity_category'] = df['accessibility_score'].apply(assign_cat)
+    df['equity_category'] = pd.cut(
+        df['accessibility_score'],
+        bins=[0, 40, 70, 100],
+        labels=["Low Access", "Medium Access", "High Access"],
+        include_lowest=True,
+        right=False
+    )
     
     gdf = gpd.GeoDataFrame(df, geometry=geometries, crs="EPSG:4326")
     
     os.makedirs('data/processed', exist_ok=True)
     gdf.to_parquet('data/processed/processed_equity_data.parquet')
     print("Mock data created at data/processed/processed_equity_data.parquet")
+    return gdf
 
 if __name__ == "__main__":
-    create_mock_data()
+    gdf = create_mock_data()

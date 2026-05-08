@@ -51,7 +51,7 @@ def _get_graph_crs(graph: nx.MultiDiGraph) -> Any:
     """Safely extract the CRS from an OSMnx graph, with fallback.
 
     Prefers graph.graph.get("crs") as the primary source of truth, falling back
-    to "EPSG:4326" if missing.
+    to "EPSG:4326" if missing or falsy.
     """
     return graph.graph.get("crs") or "EPSG:4326"
 
