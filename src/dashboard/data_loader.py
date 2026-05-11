@@ -58,10 +58,13 @@ def load_geoparquet(file_path: str) -> gpd.GeoDataFrame:
             gdf.set_crs("EPSG:4326", inplace=True)
         else:
             current_epsg = gdf.crs.to_epsg()
+            if current_epsg is None:
+                msg = f"Dataset has a non-standard or unsupported CRS: {gdf.crs}. Cannot reliably reproject to EPSG:4326."
+                logger.error(msg)
+                raise ValidationError(msg)
+
             if current_epsg != 4326:
-                if current_epsg is None:
-                    logger.warning(f"Non-standard CRS detected: {gdf.crs}")
-                logger.info(f"Reprojecting from {gdf.crs} to EPSG:4326")
+                logger.info(f"Reprojecting from EPSG:{current_epsg} to EPSG:4326")
                 gdf = gdf.to_crs("EPSG:4326")
 
         return gdf

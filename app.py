@@ -1,4 +1,5 @@
 import logging
+import os
 
 import pandas as pd
 import streamlit as st
@@ -10,7 +11,26 @@ from src.dashboard.map_renderer import create_choropleth_map
 from src.dashboard.metrics import calculate_equity_metrics
 
 # Constants
-CITY_MEDIAN_INCOME_FALLBACK = 100000
+def get_city_median_income_fallback() -> float:
+    """
+    Get city median income fallback value from environment variable.
+    
+    Reads CITY_MEDIAN_INCOME_FALLBACK or CITY_MEDIAN_INCOME_DEFAULT env var.
+    Defaults to 100000 if unset or invalid.
+    
+    Expected format: numeric value (e.g., "100000" or "75000.50")
+    """
+    fallback_env = os.environ.get('CITY_MEDIAN_INCOME_FALLBACK') or os.environ.get('CITY_MEDIAN_INCOME_DEFAULT')
+    if fallback_env is not None:
+        try:
+            return float(fallback_env)
+        except ValueError:
+            logger.warning(f"Invalid CITY_MEDIAN_INCOME_FALLBACK value: '{fallback_env}'. Using default: 100000")
+    # Default value represents a reasonable median income for many US cities
+    return 100000.0
+
+# Get the fallback value (can be overridden by environment variable)
+CITY_MEDIAN_INCOME_FALLBACK = get_city_median_income_fallback()
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -82,8 +102,8 @@ try:
     # Income Slider
     city_median_income = gdf["median_income"].median()
     if pd.isna(city_median_income) or city_median_income <= 0:
+        logger.warning(f"Invalid city median income detected: {city_median_income}. Using fallback value: {CITY_MEDIAN_INCOME_FALLBACK}")
         city_median_income = CITY_MEDIAN_INCOME_FALLBACK  # fallback for missing/invalid data
-        logger.warning(f"Using fallback city median income: {CITY_MEDIAN_INCOME_FALLBACK}")
     # default_threshold = 50% of city median, clamped to [0, 200k]
     default_income_threshold = min(max(city_median_income * 0.5, 0), 200000)
 

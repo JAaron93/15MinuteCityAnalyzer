@@ -64,8 +64,8 @@ def test_apply_all_filters_empty_gdf():
     assert filtered.empty
 
 def test_apply_all_filters_boundaries(sample_gdf):
-    # Test values exactly on the boundaries
-    # sample_gdf has scores [20, 50, 80]
+    # Test boundary inclusivity for both income and score filters
+    # geoid "1" has median_income=30000, accessibility_score=20
     filtered = apply_all_filters(sample_gdf, income_threshold=30000, score_range=(20, 20))
     assert len(filtered) == 1
     assert filtered.iloc[0]["geoid"] == "1"

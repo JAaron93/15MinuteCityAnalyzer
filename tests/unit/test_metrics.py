@@ -62,7 +62,7 @@ def test_calculate_equity_metrics_insufficient_quartile_data():
         "median_income": [30000, 40000],
         "accessibility_score": [20, 30],
         "equity_category": ["Low Access", "Low Access"],
-         "geometry": [Point(0,0) for _ in range(2)]
+        "geometry": [Point(0,0) for _ in range(2)]
     })
     gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
     metrics = calculate_equity_metrics(gdf)
@@ -70,41 +70,45 @@ def test_calculate_equity_metrics_insufficient_quartile_data():
 
 
 def test_negative_zero_values():
-    """Test that negative and zero values are handled appropriately."""
-    df = pd.DataFrame({
+    """Test that negative population raises ValueError and zero values are handled."""
+    # Case 1: Negative population should raise ValueError
+    df_neg = pd.DataFrame({
+        "geoid": ["1"],
+        "population": [-50],
+        "median_income": [50000],
+        "accessibility_score": [50],
+        "equity_category": ["High Access"],
+        "geometry": [Point(0,0)]
+    })
+    gdf_neg = gpd.GeoDataFrame(df_neg, crs="EPSG:4326")
+    with pytest.raises(ValueError, match="Population values cannot be negative"):
+        calculate_equity_metrics(gdf_neg)
+
+    # Case 2: Zero values and negative income/scores should not raise (but should be handled)
+    df_zero = pd.DataFrame({
         "geoid": ["1", "2", "3", "4"],
-        "population": [100, -50, 0, 300],  # negative and zero population
-        "median_income": [30000, 0, -10000, 50000],  # zero and negative income
-        "accessibility_score": [20, -5, 0, 80],  # negative and zero score
+        "population": [100, 0, 0, 300],
+        "median_income": [30000, 0, -10000, 50000],  # zero and negative income (should warn)
+        "accessibility_score": [20, -5, 0, 80],  # negative and zero score (should warn)
         "equity_category": ["Low Access", "Low Access", "High Access", "High Access"],
         "geometry": [Point(0,0) for _ in range(4)]
     })
-    gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
+    gdf_zero = gpd.GeoDataFrame(df_zero, crs="EPSG:4326")
     
-    # With default income_threshold=50000
-    metrics = calculate_equity_metrics(gdf)
+    # This should succeed despite negative income/scores (triggering warnings)
+    metrics = calculate_equity_metrics(gdf_zero)
     
-    # Total population should sum all values (including negatives and zeros)
-    assert metrics["total_population"] == 350  # 100 + (-50) + 0 + 300
+    # Total population should sum non-negative values
+    assert metrics["total_population"] == 400  # 100 + 0 + 0 + 300
     
-    # Low access population (first two rows)
-    assert metrics["pct_pop_low_access"] == (100 + (-50)) / 350 * 100
+    # Low access population (first two rows): 100 + 0 = 100
+    assert metrics["pct_pop_low_access"] == (100 / 400 * 100)
     
-    # Low income: income < 50000 (all rows since we have 0, -10000, 30000)
-    # Note: 0 and negative values are considered less than 50000
-    low_income_count = (df["median_income"] < 50000).sum()  # 3 rows
-    low_income_pop = df.loc[df["median_income"] < 50000, "population"].sum()  # 100 + (-50) + 0 = 50
-    
-    # Low income AND low access: first two rows qualify
-    low_income_low_access_pop = df.loc[
-        (df["median_income"] < 50000) & (df["equity_category"] == "Low Access"), "population"
-    ].sum()  # 100 + (-50) = 50
-    
-    if low_income_pop > 0:
-        expected_pct = low_income_low_access_pop / low_income_pop * 100
-        assert metrics["pct_low_income_low_access"] == expected_pct
-    else:
-        assert metrics["pct_low_income_low_access"] == 0.0
+    # Low income: income < 50000 (first three rows: 30000, 0, -10000)
+    # Low income population: 100 + 0 + 0 = 100
+    # Low income AND low access: first two rows qualify -> population 100 + 0 = 100
+    # Expected pct = 100 / 100 * 100 = 100
+    assert metrics["pct_low_income_low_access"] == 100.0
 
 
 def test_null_handling():

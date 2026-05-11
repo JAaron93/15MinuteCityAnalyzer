@@ -44,6 +44,8 @@ class DataValidator:
     def validate_osm_data(df: gpd.GeoDataFrame) -> bool:
         """
         Validates OSM POI data.
+
+        Note: Modifies the input DataFrame in-place by dropping rows with null geometries.
         """
         if df.empty:
             logger.warning("OSM POI data is empty.")
@@ -58,7 +60,8 @@ class DataValidator:
         if not null_geoms.empty:
             logger.warning(f"Found {len(null_geoms)} OSM rows with null geometry. Dropping them.")
             df.dropna(subset=["geometry"], inplace=True)
-        
+
+        logger.info(f"OSM POI data validated: {len(df)} features.")
         return True
 
     @staticmethod

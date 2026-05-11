@@ -28,9 +28,28 @@ def test_create_choropleth_map_empty():
 def test_create_choropleth_map_score(sample_gdf):
     m = create_choropleth_map(sample_gdf, metric="accessibility_score")
     assert isinstance(m, folium.Map)
-    # Verify the GeoJson layer was added by checking the rendered HTML output
-    html_repr = m.get_root().render()
-    assert "geojson" in html_repr.lower()
+    # Verify the GeoJson layer was added by checking the map's children
+    geojson_layer = None
+    for child in m._children.values():
+        if isinstance(child, folium.features.GeoJson):
+            geojson_layer = child
+            break
+    assert geojson_layer is not None, "No GeoJson layer found in map children"
+
+    # Check that the GeoJson data contains the expected feature properties
+    geojson_data = geojson_layer.data
+    assert geojson_data['type'] == 'FeatureCollection'
+    assert len(geojson_data['features']) == 1
+    feature = geojson_data['features'][0]
+    expected_properties = {
+        'geoid': '1',
+        'population': 100,
+        'median_income': 50000.0,
+        'accessibility_score': 75.0,
+        'equity_category': 'High Access'
+    }
+    for key, value in expected_properties.items():
+        assert feature['properties'][key] == value, f"Property {key} mismatch"
 
 
 def test_create_choropleth_map_income(sample_gdf):

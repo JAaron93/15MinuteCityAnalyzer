@@ -44,6 +44,20 @@ def calculate_equity_metrics(
     if missing_columns:
         raise ValueError(f"Missing required columns: {missing_columns}")
 
+    # Validation for numeric values
+    if (data["population"] < 0).any():
+        raise ValueError("Population values cannot be negative.")
+
+    if (data["median_income"] < 0).any():
+        logger.warning(
+            "Found negative median income values. These will be treated as data issues."
+        )
+
+    if (data["accessibility_score"] < 0).any():
+        logger.warning(
+            "Found negative accessibility scores. These will be treated as data issues."
+        )
+
     total_pop = data["population"].sum()
     low_access = data[data["equity_category"] == "Low Access"]
     low_income = data[data["median_income"] < income_threshold]
