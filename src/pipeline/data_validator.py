@@ -13,6 +13,8 @@ class DataValidator:
     def validate_census_data(df: gpd.GeoDataFrame) -> bool:
         """
         Validates Census block group data.
+
+        Note: May drop or modify rows in-place (e.g., drops null geometries, caps negative population).
         """
         if df.empty:
             logger.error("Census data is empty.")
@@ -68,6 +70,8 @@ class DataValidator:
     def validate_crs(df: gpd.GeoDataFrame, expected_crs: str = "EPSG:4326") -> bool:
         """
         Verifies coordinate reference system (FR-1.4.1).
+
+        Note: Modifies CRS in-place if it is missing or doesn't match the expected CRS.
         """
         if df.crs is None:
             logger.warning(f"Data has no CRS. Setting to {expected_crs}.")
@@ -84,6 +88,8 @@ class DataValidator:
     def repair_geometries(df: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         """
         Repairs invalid geometries using buffer(0) technique (2.3.5).
+
+        Note: Repairs geometries in-place.
         """
         invalid_count = (~df.is_valid).sum()
         if invalid_count > 0:
@@ -95,6 +101,8 @@ class DataValidator:
     def validate_demographics(df: gpd.GeoDataFrame) -> bool:
         """
         Checks for missing or invalid demographic data (2.3.4).
+
+        Note: May modify data in-place (e.g., fills missing population with 0).
         """
         missing_pop = df["population"].isnull().sum()
         missing_income = df["median_income"].isnull().sum()

@@ -69,7 +69,7 @@ def test_calculate_equity_metrics_insufficient_quartile_data():
     assert metrics["avg_score_by_quartile"] == {}
 
 
-def test_negative_zero_values():
+def test_negative_zero_values(caplog):
     """Test that negative population raises ValueError and zero values are handled."""
     # Case 1: Negative population should raise ValueError
     df_neg = pd.DataFrame({
@@ -96,7 +96,12 @@ def test_negative_zero_values():
     gdf_zero = gpd.GeoDataFrame(df_zero, crs="EPSG:4326")
     
     # This should succeed despite negative income/scores (triggering warnings)
-    metrics = calculate_equity_metrics(gdf_zero)
+    import logging
+    with caplog.at_level(logging.WARNING):
+        metrics = calculate_equity_metrics(gdf_zero)
+    
+    assert "Found negative median income values" in caplog.text
+    assert "Found negative accessibility scores" in caplog.text
     
     # Total population should sum non-negative values
     assert metrics["total_population"] == 400  # 100 + 0 + 0 + 300
@@ -111,11 +116,27 @@ def test_negative_zero_values():
     assert metrics["pct_low_income_low_access"] == 100.0
 
 
-def test_null_handling():
-    """Test handling of None/null values in required columns."""
+def test_null_handling_population_raises_error():
+    """Test that missing population raises a ValueError."""
     df = pd.DataFrame({
         "geoid": ["1", "2", "3", "4"],
         "population": [100, 200, None, 400],
+        "median_income": [30000, 40000, 50000, 60000],
+        "accessibility_score": [20, 30, 40, 80],
+        "equity_category": ["Low Access", "Low Access", "High Access", "High Access"],
+        "geometry": [Point(0,0) for _ in range(4)]
+    })
+    gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
+    
+    with pytest.raises(ValueError, match="Found 1 missing population values"):
+        calculate_equity_metrics(gdf, income_threshold=45000)
+
+
+def test_null_handling_warnings(caplog):
+    """Test handling of None/null values in non-population columns."""
+    df = pd.DataFrame({
+        "geoid": ["1", "2", "3", "4"],
+        "population": [100, 200, 300, 400],
         "median_income": [30000, None, 50000, 60000],
         "accessibility_score": [20, 30, None, 80],
         "equity_category": ["Low Access", "Low Access", "High Access", None],
@@ -123,33 +144,27 @@ def test_null_handling():
     })
     gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
     
-    # The function should not crash with null values - pandas operations
-    # will handle them appropriately (sums ignore NaN, comparisons with NaN yield False)
-    metrics = calculate_equity_metrics(gdf, income_threshold=45000)
+    import logging
+    with caplog.at_level(logging.WARNING):
+        metrics = calculate_equity_metrics(gdf, income_threshold=45000)
+        
+    assert "Found 1 missing median_income values" in caplog.text
+    assert "Found 1 missing accessibility_score values" in caplog.text
     
-    # Basic assertions - function should not crash
+    # Check that calculations worked despite nulls
     assert metrics["total_block_groups"] == 4
+    assert metrics["total_population"] == 1000
     
-    # Population sum should ignore NaN: 100 + 200 + 0 + 400 = 700 (NaN treated as 0 in sum?)
-    # Actually, pandas sum() ignores NaN by default, so: 100 + 200 + 400 = 700
-    assert metrics["total_population"] == 700
-    
-    # For pct_pop_low_access: Low Access rows are 0,1,3 (row 2 is High Access, row 3 has None equity_category)
-    # Row 3's None equity_category is not equal to "Low Access", so only rows 0,1 count
+    # For pct_pop_low_access: Low Access rows are 0,1 (row 2 is High Access, row 3 has None equity_category)
     # Population for low access: 100 + 200 = 300
-    # Total population: 700
-    # Expected: 300/700*100
-    assert abs(metrics["pct_pop_low_access"] - (300/700*100)) < 0.001
+    # Expected: 300/1000*100 = 30.0
+    assert abs(metrics["pct_pop_low_access"] - 30.0) < 0.001
     
     # For pct_low_income_low_access:
-    # Low income: income < 45000 -> rows 0 (30000) and 1 (None -> False in comparison) -> only row 0
+    # Low income: income < 45000 -> row 0 (30000) (row 1 has None, which is False)
     # Low income population: 100
-    # Low income AND low access: row 0 qualifies (30000 < 45000 and Low Access) -> population 100
-    # If low income population > 0: pct = 100/100*100 = 100
-    # But wait, let's double-check: row 1 has None income, which is not < 45000 (False)
-    # So low income population is just row 0: 100
-    # Low income AND low access is also just row 0: 100
-    # Pct = 100/100*100 = 100
+    # Low income AND low access: row 0 -> population 100
+    # Pct = 100/100*100 = 100.0
     assert metrics["pct_low_income_low_access"] == 100.0
 
 

@@ -10,6 +10,10 @@ from src.dashboard.filters import apply_all_filters
 from src.dashboard.map_renderer import create_choropleth_map
 from src.dashboard.metrics import calculate_equity_metrics
 
+# Configure Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Constants
 def get_city_median_income_fallback() -> float:
     """

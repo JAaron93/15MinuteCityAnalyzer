@@ -25,31 +25,47 @@ def test_create_choropleth_map_empty():
         create_choropleth_map(gpd.GeoDataFrame())
 
 
-def test_create_choropleth_map_score(sample_gdf):
+def test_create_choropleth_map_score(sample_gdf, mocker):
+    # Capture the GeoJson object when it's created to avoid searching map children
+    spy = mocker.spy(folium, "GeoJson")
+
     m = create_choropleth_map(sample_gdf, metric="accessibility_score")
     assert isinstance(m, folium.Map)
-    # Verify the GeoJson layer was added by checking the map's children
-    geojson_layer = None
-    for child in m._children.values():
-        if isinstance(child, folium.features.GeoJson):
-            geojson_layer = child
-            break
-    assert geojson_layer is not None, "No GeoJson layer found in map children"
+
+    # Get the actual GeoJson instance that was created
+    geojson_layer = spy.spy_return
+
+    # Verify the GeoJson layer was added to the map
+    assert any(
+        child is geojson_layer for child in m._children.values()
+    ), "No GeoJson layer found in map children"
 
     # Check that the GeoJson data contains the expected feature properties
+    assert hasattr(geojson_layer, "data"), "GeoJson layer has no 'data' attribute"
     geojson_data = geojson_layer.data
-    assert geojson_data['type'] == 'FeatureCollection'
-    assert len(geojson_data['features']) == 1
-    feature = geojson_data['features'][0]
+    assert isinstance(geojson_data, dict), "GeoJson data is not a dictionary"
+    assert (
+        geojson_data.get("type") == "FeatureCollection"
+    ), "GeoJson data type is not 'FeatureCollection'"
+    assert "features" in geojson_data, "GeoJson data missing 'features' key"
+    assert isinstance(geojson_data["features"], list), "'features' is not a list"
+    assert len(geojson_data["features"]) >= 1, "No features found in GeoJson data"
+
+    feature = geojson_data["features"][0]
+    assert isinstance(feature, dict), "First feature is not a dictionary"
+    assert "properties" in feature, "First feature missing 'properties' key"
+
     expected_properties = {
-        'geoid': '1',
-        'population': 100,
-        'median_income': 50000.0,
-        'accessibility_score': 75.0,
-        'equity_category': 'High Access'
+        "geoid": "1",
+        "population": 100,
+        "median_income": 50000.0,
+        "accessibility_score": 75.0,
+        "equity_category": "High Access",
     }
+    properties = feature["properties"]
     for key, value in expected_properties.items():
-        assert feature['properties'][key] == value, f"Property {key} mismatch"
+        assert key in properties, f"Property {key} missing from feature properties"
+        assert properties[key] == value, f"Property {key} mismatch"
 
 
 def test_create_choropleth_map_income(sample_gdf):

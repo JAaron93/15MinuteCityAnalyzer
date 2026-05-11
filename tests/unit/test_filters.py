@@ -28,9 +28,9 @@ def test_apply_all_filters_score(sample_gdf):
 
 def test_apply_all_filters_income_out_of_range(sample_gdf):
     # Test income out of range
-    with pytest.raises(ValueError, match="income_threshold must be between 0.0 and"):
+    with pytest.raises(ValueError, match=r"income_threshold must be between 0.0 and 200000.0"):
         apply_all_filters(sample_gdf, income_threshold=-1, score_range=(0, 100))
-    with pytest.raises(ValueError, match="income_threshold must be between 0.0 and"):
+    with pytest.raises(ValueError, match=r"income_threshold must be between 0.0 and 200000.0"):
         apply_all_filters(sample_gdf, income_threshold=MAX_INCOME_THRESHOLD + 1, score_range=(0, 100))
 
 def test_apply_all_filters_score_range_invalid_order(sample_gdf):

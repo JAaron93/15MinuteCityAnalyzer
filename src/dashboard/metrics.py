@@ -44,6 +44,21 @@ def calculate_equity_metrics(
     if missing_columns:
         raise ValueError(f"Missing required columns: {missing_columns}")
 
+    # Validation for NaN/null values
+    pop_nulls = data["population"].isna().sum()
+    if pop_nulls > 0:
+        raise ValueError(f"Found {pop_nulls} missing population values.")
+    if (data["median_income"] < 0).any():
+        logger.warning(
+            "Found negative median income values. These records will be excluded from calculations."
+        )
+        data = data[data["median_income"] >= 0].copy()
+
+    if (data["accessibility_score"] < 0).any():
+        logger.warning(
+            "Found negative accessibility scores. These records will be excluded from calculations."
+        )
+        data = data[data["accessibility_score"] >= 0].copy()
     # Validation for numeric values
     if (data["population"] < 0).any():
         raise ValueError("Population values cannot be negative.")

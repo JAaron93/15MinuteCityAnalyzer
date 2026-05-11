@@ -55,7 +55,7 @@ def test_load_geoparquet_reprojection(tmp_path):
     file_path = tmp_path / "reproject.parquet"
     df = pd.DataFrame({
         "geoid": ["1"],
-        "geometry": [Point(0, 0)],
+        "geometry": [Point(1000000, 1000000)],
         "population": [100],
         "median_income": [50000.0],
         "raw_score": [50.0],
@@ -68,9 +68,11 @@ def test_load_geoparquet_reprojection(tmp_path):
 
     loaded_gdf = load_geoparquet(str(file_path))
 
-   assert loaded_gdf.crs.to_epsg() == 4326
-    # Verify coordinates were actually transformed (Point(0,0) in EPSG:3857 ≠ Point(0,0) in EPSG:4326)
-    assert loaded_gdf.loc[0, "geometry"].x != 0 or loaded_gdf.loc[0, "geometry"].y != 0
+    assert loaded_gdf.crs.to_epsg() == 4326
+    # Verify coordinates were actually transformed
+    geom = loaded_gdf.loc[0, "geometry"]
+    assert geom.x != 1000000
+    assert geom.y != 1000000
 
 
 def test_load_geoparquet_invalid_crs(tmp_path):

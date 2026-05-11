@@ -60,7 +60,7 @@ def create_choropleth_map(
             return colormap(income)
 
     # Add GeoJson with tooltips
-    folium.GeoJson(
+    geojson_layer = folium.GeoJson(
         data,
         style_function=lambda x: {
             "fillColor": fill_color_fn(x),
@@ -85,7 +85,8 @@ def create_choropleth_map(
             ],
             localize=True,
         ),
-    ).add_to(m)
+    )
+    geojson_layer.add_to(m)
 
     # Add colormap to map
     colormap.add_to(m)
