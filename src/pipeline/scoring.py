@@ -436,13 +436,15 @@ def assign_equity_category(
     validated_at = datetime.now(timezone.utc).isoformat()
 
     metadata: Dict[str, Any] = {
-        "equity_thresholds.high_access_min": high_min,
-        "equity_thresholds.medium_access_min": med_min,
-        "equity_thresholds.percentile_check": percentile_check,
-        "equity_thresholds.category_fractions": category_fractions,
-        "equity_thresholds.sensitivity_check": sensitivity_check,
-        "equity_thresholds.sensitivity_stability": sensitivity_stability,
-        "equity_thresholds.validated_at": validated_at,
+        "equity_thresholds": {
+            "high_access_min": high_min,
+            "medium_access_min": med_min,
+            "percentile_check": percentile_check,
+            "category_fractions": category_fractions,
+            "sensitivity_check": sensitivity_check,
+            "sensitivity_stability": sensitivity_stability,
+            "validated_at": validated_at,
+        }
     }
 
     logger.info(f"Equity thresholds validated at {validated_at}: {metadata}")

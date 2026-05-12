@@ -173,8 +173,9 @@ def test_equity_category_consistency(scores):
     
     assigned, metadata = assign_equity_category(block_groups)
     
-    high_min = metadata["equity_thresholds.high_access_min"]
-    med_min = metadata["equity_thresholds.medium_access_min"]
+    thresholds = metadata["equity_thresholds"]
+    high_min = thresholds["high_access_min"]
+    med_min = thresholds["medium_access_min"]
     
     for _, row in assigned.iterrows():
         score = row["accessibility_score"]

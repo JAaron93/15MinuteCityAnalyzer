@@ -84,26 +84,28 @@ class OSMFetcher:
             logger.error(msg)
             raise Exception(msg) # Should be BoundingBoxTooLargeError
 
-    @retry_with_policy({"attempts": 3, "per_request_timeout_s": 10}) # Simplified for internal use
-    def _fetch_amenities_batch(self, bbox: Tuple[float, float, float, float], **kwargs) -> gpd.GeoDataFrame:
+    def _fetch_amenities_batch(self, bbox: Tuple[float, float, float, float]) -> gpd.GeoDataFrame:
         """
         Internal batch fetcher for amenities.
         """
-        all_pois = []
         north, south, east, west = bbox
         
-        for amenity_type, tags in self.amenity_tags.items():
-            try:
-                # Combine tags into a single dictionary for ox.features_from_bbox
-                # Actually, ox.features_from_bbox takes a dict of {tag: values}
-                pois = ox.features_from_bbox(north, south, east, west, tags)
-                if not pois.empty:
-                    pois["amenity_type"] = amenity_type
-                    all_pois.append(pois)
-            except ox._errors.InsufficientResponseError:
-                logger.info(f"No {amenity_type} found in bbox.")
-            except Exception as e:
-                logger.warning(f"Error fetching {amenity_type}: {e}")
+        @retry_with_policy(self.retry_policy)
+        def _execute():
+            all_pois = []
+            for amenity_type, tags in self.amenity_tags.items():
+                try:
+                    pois = ox.features_from_bbox(north, south, east, west, tags)
+                    if not pois.empty:
+                        pois["amenity_type"] = amenity_type
+                        all_pois.append(pois)
+                except ox._errors.InsufficientResponseError:
+                    logger.info(f"No {amenity_type} found in bbox.")
+                # Transient errors (Timeout, Connection, etc.) are allowed to propagate
+                # to the retry decorator.
+            return all_pois
+
+        all_pois = _execute()
         
         if not all_pois:
             return gpd.GeoDataFrame()

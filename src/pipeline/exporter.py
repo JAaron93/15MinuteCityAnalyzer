@@ -47,9 +47,19 @@ def export_to_geoparquet(
     }
 
     if metadata:
-        # Convert all metadata values to strings for pyarrow compatibility
-        str_metadata = {k: str(v) for k, v in metadata.items()}
-        export_kwargs["custom_metadata"] = str_metadata
+        # Convert nested metadata to flattened string keys for pyarrow compatibility
+        flat_metadata = {}
+
+        def _flatten(d: Dict[str, Any], prefix: str = "") -> None:
+            for k, v in d.items():
+                key = f"{prefix}{k}"
+                if isinstance(v, dict):
+                    _flatten(v, f"{key}.")
+                else:
+                    flat_metadata[key] = str(v)
+
+        _flatten(metadata)
+        export_kwargs["custom_metadata"] = flat_metadata
 
     # Check if underlying ParquetWriter supports custom_metadata
     # (capability check)
