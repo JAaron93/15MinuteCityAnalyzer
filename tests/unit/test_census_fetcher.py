@@ -140,3 +140,58 @@ def test_identify_counties(CensusFetcher, mock_cenpy, mock_config):
     # Verify it used the extracted state_fips_code (36) for filtering
     # and didn't call fips_table a second time
     assert mock_cenpy.explorer.fips_table.call_count == 1
+
+
+def test_log_conflicts(CensusFetcher, mock_config):
+    """Test that conflicting attribute values across counties are logged."""
+    fetcher = CensusFetcher(mock_config)
+
+    duplicates = pd.DataFrame({
+        "geoid": ["bg1", "bg1"],
+        "population": [100, 200],
+        "median_income": [50000, 50000],
+        "county": ["001", "002"],
+    })
+
+    # Should not raise, just log
+    fetcher._log_conflicts(duplicates)
+
+
+def test_fetch_county_block_groups_empty(CensusFetcher, mock_cenpy, mock_config):
+    """Test empty result from county query."""
+    fetcher = CensusFetcher(mock_config)
+
+    mock_acs = MagicMock()
+    mock_cenpy.products.ACS.return_value = mock_acs
+    mock_acs.from_county.return_value = gpd.GeoDataFrame()
+
+    result = fetcher._fetch_county_block_groups("36", "001")
+    assert result.empty
+
+
+def test_identify_counties_empty(CensusFetcher, mock_cenpy, mock_config):
+    """Test _identify_counties returns empty list when no counties found."""
+    mock_cenpy.explorer.fips_table.reset_mock()
+    fetcher = CensusFetcher(mock_config)
+
+    mock_cenpy.explorer.fips_table.return_value = pd.DataFrame([{"state": 36}])
+    mock_acs = MagicMock()
+    mock_cenpy.products.ACS.return_value = mock_acs
+    mock_acs.from_polygon.return_value = gpd.GeoDataFrame()
+
+    counties = fetcher._identify_counties("New York", (0, 0, 1, 1))
+    assert counties == []
+
+
+def test_identify_counties_exception(CensusFetcher, mock_cenpy, mock_config):
+    """Test _identify_counties returns empty list on exception."""
+    mock_cenpy.explorer.fips_table.reset_mock()
+    fetcher = CensusFetcher(mock_config)
+
+    mock_cenpy.explorer.fips_table.side_effect = Exception("API down")
+    try:
+        counties = fetcher._identify_counties("New York", (0, 0, 1, 1))
+        assert counties == []
+    finally:
+        mock_cenpy.explorer.fips_table.side_effect = None
+

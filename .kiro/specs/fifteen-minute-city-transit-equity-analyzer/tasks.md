@@ -245,28 +245,28 @@
   - [x] 6.4.8 Test score filter with sample data
   - [x] 6.4.9 Test combined filters
 
-- [ ] 6.5 Property-based tests
-  - [ ] 6.5.1 Create `tests/test_properties.py`
-  - [ ] 6.5.2 Implement property test for spatial integrity: verify that only block groups where `overlap_area / block_area ≥ MIN_OVERLAP_FRACTION` are counted as having access; test at-threshold, below-threshold, and zero-overlap cases; all area calculations in UTM
-  - [ ] 6.5.3 Implement property test for score monotonicity: verify `raw_score(b1) > raw_score(b2) ⟹ accessibility_score(b1) ≥ accessibility_score(b2)` where `raw_score` uses the capped weighted formula; do NOT assert monotonicity over `total_amenities`
-  - [ ] 6.5.4 Implement property test for CRS consistency (output always WGS84)
-  - [ ] 6.5.5 Implement property test for data completeness (all block groups have scores)
-  - [ ] 6.5.6 Implement property test for equity category consistency (score thresholds)
-  - [ ] 6.5.7 Use Hypothesis library to generate random test data
+- [x] 6.5 Property-based tests
+  - [x] 6.5.1 Create `tests/test_properties.py`
+  - [x] 6.5.2 Implement property test for spatial integrity: verify that only block groups where `overlap_area / block_area ≥ MIN_OVERLAP_FRACTION` are counted as having access; test at-threshold, below-threshold, and zero-overlap cases; all area calculations in UTM
+  - [x] 6.5.3 Implement property test for score monotonicity: verify `raw_score(b1) > raw_score(b2) ⟹ accessibility_score(b1) ≥ accessibility_score(b2)` where `raw_score` uses the capped weighted formula; do NOT assert monotonicity over `total_amenities`
+  - [x] 6.5.4 Implement property test for CRS consistency (output always WGS84)
+  - [x] 6.5.5 Implement property test for data completeness (all block groups have scores)
+  - [x] 6.5.6 Implement property test for equity category consistency (score thresholds)
+  - [x] 6.5.7 Use Hypothesis library to generate random test data
 
-- [ ] 6.6 Integration tests
-  - [ ] 6.6.1 Create `tests/test_integration.py`
-  - [ ] 6.6.2 Test end-to-end pipeline with small test city
-  - [ ] 6.6.3 Test pipeline-to-dashboard integration
-  - [ ] 6.6.4 Test GeoParquet export and import round-trip
-  - [ ] 6.6.5 Test cross-CRS transformations throughout pipeline
-  - [ ] 6.6.6 Measure and validate processing time for test city
+- [x] 6.6 Integration tests
+  - [x] 6.6.1 Create `tests/test_integration.py`
+  - [x] 6.6.2 Test end-to-end pipeline with small test city
+  - [x] 6.6.3 Test pipeline-to-dashboard integration
+  - [x] 6.6.4 Test GeoParquet export and import round-trip
+  - [x] 6.6.5 Test cross-CRS transformations throughout pipeline
+  - [x] 6.6.6 Measure and validate processing time for test city
 
-- [ ] 6.7 Test coverage and quality
-  - [ ] 6.7.1 Configure pytest-cov for coverage reporting
-  - [ ] 6.7.2 Run all tests and generate coverage report
-  - [ ] 6.7.3 Ensure at least 80% code coverage
-  - [ ] 6.7.4 Add coverage badge to README.md
+- [x] 6.7 Test coverage and quality
+  - [x] 6.7.1 Configure pytest-cov for coverage reporting
+  - [x] 6.7.2 Run all tests and generate coverage report
+  - [x] 6.7.3 Ensure at least 80% code coverage
+  - [x] 6.7.4 Add coverage badge to README.md
 
 ## 7. Code Quality and Documentation
 

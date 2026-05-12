@@ -48,6 +48,19 @@ def calculate_equity_metrics(
     pop_nulls = data["population"].isna().sum()
     if pop_nulls > 0:
         raise ValueError(f"Found {pop_nulls} missing population values.")
+
+    income_nulls = data["median_income"].isna().sum()
+    if income_nulls > 0:
+        logger.warning(f"Found {income_nulls} missing median_income values.")
+
+    score_nulls = data["accessibility_score"].isna().sum()
+    if score_nulls > 0:
+        logger.warning(f"Found {score_nulls} missing accessibility_score values.")
+
+    # Validation and filtering for numeric values
+    if (data["population"] < 0).any():
+        raise ValueError("Population values cannot be negative.")
+
     if (data["median_income"] < 0).any():
         logger.warning(
             "Found negative median income values. These records will be excluded from calculations."
@@ -59,19 +72,6 @@ def calculate_equity_metrics(
             "Found negative accessibility scores. These records will be excluded from calculations."
         )
         data = data[data["accessibility_score"] >= 0].copy()
-    # Validation for numeric values
-    if (data["population"] < 0).any():
-        raise ValueError("Population values cannot be negative.")
-
-    if (data["median_income"] < 0).any():
-        logger.warning(
-            "Found negative median income values. These will be treated as data issues."
-        )
-
-    if (data["accessibility_score"] < 0).any():
-        logger.warning(
-            "Found negative accessibility scores. These will be treated as data issues."
-        )
 
     total_pop = data["population"].sum()
     low_access = data[data["equity_category"] == "Low Access"]

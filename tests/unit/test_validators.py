@@ -67,3 +67,62 @@ def test_validate_demographics():
     gdf = gpd.GeoDataFrame(df)
     assert validator.validate_demographics(gdf) is True
     assert gdf.loc[1, "population"] == 0
+
+
+def test_validate_osm_data_empty():
+    """Empty OSM data is valid (no POIs in area is OK)."""
+    validator = DataValidator()
+    assert validator.validate_osm_data(gpd.GeoDataFrame()) is True
+
+
+def test_validate_osm_data_missing_amenity_type():
+    """OSM data without amenity_type column should fail."""
+    validator = DataValidator()
+    df = pd.DataFrame({"osm_id": ["1"], "geometry": [Point(0, 0)]})
+    gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
+    assert validator.validate_osm_data(gdf) is False
+
+
+def test_validate_osm_data_null_geometry():
+    """OSM data with null geometries should be cleaned."""
+    validator = DataValidator()
+    df = pd.DataFrame({
+        "amenity_type": ["grocery", "grocery"],
+        "geometry": [Point(0, 0), None]
+    })
+    gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
+    assert validator.validate_osm_data(gdf) is True
+    assert len(gdf) == 1  # null geometry row dropped
+
+
+def test_validate_census_data_null_geometry():
+    """Census data with null geometries should be dropped."""
+    validator = DataValidator()
+    df = pd.DataFrame({
+        "geoid": ["1", "2"],
+        "population": [100, 200],
+        "median_income": [50000, 60000],
+        "geometry": [Point(0, 0), None]
+    })
+    gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
+    assert validator.validate_census_data(gdf) is True
+    assert len(gdf) == 1
+
+
+def test_validate_crs_mismatch():
+    """CRS mismatch should trigger re-projection."""
+    validator = DataValidator()
+    df = pd.DataFrame({"geometry": [Point(0, 0)]})
+    gdf = gpd.GeoDataFrame(df, crs="EPSG:3857")
+    assert validator.validate_crs(gdf, "EPSG:4326") is True
+
+
+def test_repair_geometries_all_valid():
+    """Repairing already-valid geometries should be a no-op."""
+    validator = DataValidator()
+    p = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+    assert p.is_valid
+    gdf = gpd.GeoDataFrame({"geometry": [p]}, crs="EPSG:4326")
+    repaired = validator.repair_geometries(gdf)
+    assert repaired.geometry[0].is_valid
+

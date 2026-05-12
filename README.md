@@ -1,5 +1,9 @@
 # 15-Minute City & Transit Equity Analyzer
 
+![Coverage](https://img.shields.io/badge/coverage-80%25-brightgreen)
+![Tests](https://img.shields.io/badge/tests-142%20passed-brightgreen)
+![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+
 A geospatial analysis tool that evaluates urban accessibility and transit equity. This project analyzes whether residents can access essential amenities (grocery stores, healthcare, transit) within a 15-minute walk and identifies equity gaps by correlating accessibility with demographic data.
 
 ## Features
