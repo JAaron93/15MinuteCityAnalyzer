@@ -76,6 +76,10 @@ def test_pipeline_to_dashboard_integration():
     assert "high_access_min" in thresholds
     assert "medium_access_min" in thresholds
     assert "validated_at" in thresholds
+    assert isinstance(thresholds["high_access_min"], (int, float))
+    assert isinstance(thresholds["medium_access_min"], (int, float))
+    assert thresholds["medium_access_min"] >= 0
+    assert thresholds["high_access_min"] >= thresholds["medium_access_min"]
     
     # 6. Ensure CRS consistency
     assert bg_final.crs.to_string() == "EPSG:4326"
@@ -114,5 +118,5 @@ def test_pipeline_to_dashboard_integration():
     processing_time = end_time - start_time
     
     # Validate processing time
-    max_processing_time = float(os.environ.get("TEST_MAX_PROCESSING_TIME", 60.0))
+    max_processing_time = float(os.environ.get("TEST_MAX_PROCESSING_TIME", "60.0"))
     assert processing_time < max_processing_time, f"Processing took {processing_time:.2f}s, expected < {max_processing_time}s"

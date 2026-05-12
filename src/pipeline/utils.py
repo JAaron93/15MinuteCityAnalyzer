@@ -110,3 +110,22 @@ def setup_logging(level: int = logging.INFO) -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
+
+def get_nested_metadata(metadata: Dict[str, Any], top_key: str, sub_key: str, default: Any = None) -> Any:
+    """
+    Safely retrieves a value from nested metadata with a fallback to flattened key.
+    
+    Example: 
+        get_nested_metadata(meta, "equity_thresholds", "high_access_min")
+        checks meta["equity_thresholds"]["high_access_min"] 
+        then meta["equity_thresholds.high_access_min"]
+    """
+    # Try nested access
+    top_value = metadata.get(top_key)
+    if isinstance(top_value, dict):
+        if sub_key in top_value:
+            return top_value[sub_key]
+    
+    # Fallback to flattened key pattern
+    flattened_key = f"{top_key}.{sub_key}"
+    return metadata.get(flattened_key, default)

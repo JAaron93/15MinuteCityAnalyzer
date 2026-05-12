@@ -1,4 +1,5 @@
 import inspect
+import json
 import logging
 from typing import Any, Dict, Optional
 
@@ -52,11 +53,29 @@ def export_to_geoparquet(
 
         def _flatten(d: Dict[str, Any], prefix: str = "") -> None:
             for k, v in d.items():
-                key = f"{prefix}{k}"
+                base_key = f"{prefix}{k}"
+                
                 if isinstance(v, dict):
-                    _flatten(v, f"{key}.")
+                    _flatten(v, f"{base_key}.")
                 else:
-                    flat_metadata[key] = str(v)
+                    # Handle collisions (FR-1.3.4 refinement)
+                    final_key = base_key
+                    counter = 1
+                    while final_key in flat_metadata:
+                        final_key = f"{base_key}.{counter}"
+                        counter += 1
+                    
+                    if final_key != base_key:
+                        logger.warning(
+                            f"Metadata key collision detected: '{base_key}' already exists. "
+                            f"Using disambiguated key: '{final_key}'"
+                        )
+                    
+                    # Handle sequences and values
+                    if isinstance(v, (list, tuple)):
+                        flat_metadata[final_key] = json.dumps(v)
+                    else:
+                        flat_metadata[final_key] = str(v)
 
         _flatten(metadata)
         export_kwargs["custom_metadata"] = flat_metadata
@@ -75,9 +94,6 @@ def export_to_geoparquet(
     # 1. Base export
     try:
         df.to_parquet(**export_kwargs)
-    except TypeError:
-        # If we still get a TypeError, it's unexpected
-        raise
     except Exception as e:
         logger.error(f"Unexpected error during export: {e}")
         raise

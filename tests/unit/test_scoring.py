@@ -519,16 +519,18 @@ class TestAssignEquityCategory:
             _, metadata = assign_equity_category(bg)
 
         required_keys = [
-            "equity_thresholds.high_access_min",
-            "equity_thresholds.medium_access_min",
-            "equity_thresholds.percentile_check",
-            "equity_thresholds.category_fractions",
-            "equity_thresholds.sensitivity_check",
-            "equity_thresholds.sensitivity_stability",
-            "equity_thresholds.validated_at",
+            "high_access_min",
+            "medium_access_min",
+            "percentile_check",
+            "category_fractions",
+            "sensitivity_check",
+            "sensitivity_stability",
+            "validated_at",
         ]
+        assert "equity_thresholds" in metadata
+        thresholds = metadata["equity_thresholds"]
         for key in required_keys:
-            assert key in metadata, f"Missing metadata key: {key}"
+            assert key in thresholds, f"Missing metadata key in equity_thresholds: {key}"
 
     def test_percentile_check_pass(self) -> None:
         """All categories ≥ 5% should produce PASS."""
@@ -541,7 +543,7 @@ class TestAssignEquityCategory:
         ):
             _, metadata = assign_equity_category(bg)
 
-        assert metadata["equity_thresholds.percentile_check"] == "PASS"
+        assert metadata["equity_thresholds"]["percentile_check"] == "PASS"
 
     def test_percentile_check_warn(self) -> None:
         """Category with < 5% should produce WARN."""
@@ -554,7 +556,7 @@ class TestAssignEquityCategory:
         ):
             _, metadata = assign_equity_category(bg)
 
-        assert metadata["equity_thresholds.percentile_check"] == "WARN"
+        assert metadata["equity_thresholds"]["percentile_check"] == "WARN"
 
     def test_sensitivity_check_has_both_shifts(self) -> None:
         """Sensitivity stability must include both shift_plus5 and shift_minus5."""
@@ -566,7 +568,7 @@ class TestAssignEquityCategory:
         ):
             _, metadata = assign_equity_category(bg)
 
-        stability = metadata["equity_thresholds.sensitivity_stability"]
+        stability = metadata["equity_thresholds"]["sensitivity_stability"]
         assert "shift_plus5" in stability
         assert "shift_minus5" in stability
         assert 0.0 <= stability["shift_plus5"] <= 1.0
@@ -598,7 +600,7 @@ class TestAssignEquityCategory:
         # Shifted categories for [97, 98, 99, 100]: [L, L, M, H]
         
         # The fact that it doesn't crash and returns stability is the primary check here.
-        stability = metadata["equity_thresholds.sensitivity_stability"]
+        stability = metadata["equity_thresholds"]["sensitivity_stability"]
         assert "shift_plus5" in stability
         assert 0.0 <= stability["shift_plus5"] <= 1.0
         assert "shift_minus5" in stability
