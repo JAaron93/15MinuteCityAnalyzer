@@ -142,8 +142,9 @@ def test_identify_counties(CensusFetcher, mock_cenpy, mock_config):
     assert mock_cenpy.explorer.fips_table.call_count == 1
 
 
-def test_log_conflicts(CensusFetcher, mock_config):
+def test_log_conflicts(CensusFetcher, mock_config, caplog):
     """Test that conflicting attribute values across counties are logged."""
+    import logging
     fetcher = CensusFetcher(mock_config)
 
     duplicates = pd.DataFrame({
@@ -154,7 +155,11 @@ def test_log_conflicts(CensusFetcher, mock_config):
     })
 
     # Should not raise, just log
-    fetcher._log_conflicts(duplicates)
+    with caplog.at_level(logging.WARNING):
+        fetcher._log_conflicts(duplicates)
+    
+    assert "Conflict for geoid bg1 in field 'population'" in caplog.text
+    assert "Values [100, 200] found in counties ['001', '002']" in caplog.text
 
 
 def test_fetch_county_block_groups_empty(CensusFetcher, mock_cenpy, mock_config):
@@ -183,15 +188,18 @@ def test_identify_counties_empty(CensusFetcher, mock_cenpy, mock_config):
     assert counties == []
 
 
-def test_identify_counties_exception(CensusFetcher, mock_cenpy, mock_config):
+def test_identify_counties_exception(CensusFetcher, mock_cenpy, mock_config, caplog):
     """Test _identify_counties returns empty list on exception."""
+    import logging
     mock_cenpy.explorer.fips_table.reset_mock()
     fetcher = CensusFetcher(mock_config)
 
     mock_cenpy.explorer.fips_table.side_effect = Exception("API down")
     try:
-        counties = fetcher._identify_counties("New York", (0, 0, 1, 1))
+        with caplog.at_level(logging.ERROR):
+            counties = fetcher._identify_counties("New York", (0, 0, 1, 1))
         assert counties == []
+        assert "Error identifying counties: API down" in caplog.text
     finally:
         mock_cenpy.explorer.fips_table.side_effect = None
 

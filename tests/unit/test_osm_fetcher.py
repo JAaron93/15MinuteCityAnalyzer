@@ -12,6 +12,14 @@ def test_osm_fetcher_init():
     assert "grocery" in fetcher.amenity_tags
 
 
+@pytest.fixture
+def mock_insufficient_response_error():
+    """Fixture to provide a custom InsufficientResponseError for OSMnx mocks."""
+    class InsufficientResponseError(Exception):
+        pass
+    return InsufficientResponseError
+
+
 def test_validate_bbox_pass():
     fetcher = OSMFetcher()
     # 0.5 x 0.5 is fine (area 0.25 < 1.0, edge 0.5 < 1.0)
@@ -48,30 +56,26 @@ def test_fetch_amenities_batch(mock_validator, mock_ox):
 
     bbox = (45.5, 45.0, -122.0, -122.5)
     # Call the underlying function directly (unwrap the retry decorator)
-    result = fetcher._fetch_amenities_batch.__wrapped__(fetcher, bbox)
+    result = fetcher._fetch_amenities_batch(bbox)
 
     assert not result.empty
     assert "amenity_type" in result.columns
     # Should have been called once per amenity type (4 types)
-    assert mock_ox.features_from_bbox.call_count == 4
+    assert mock_ox.features_from_bbox.call_count == len(fetcher.amenity_tags)
 
 
 @patch("src.pipeline.osm_fetcher.ox")
 @patch("src.pipeline.osm_fetcher.DataValidator")
-def test_fetch_amenities_batch_empty(mock_validator, mock_ox):
+def test_fetch_amenities_batch_empty(mock_validator, mock_ox, mock_insufficient_response_error):
     """Test _fetch_amenities_batch when OSMnx returns no results."""
     fetcher = OSMFetcher()
 
-    # Create a proper exception class
-    class InsufficientResponseError(Exception):
-        pass
-
     mock_ox._errors = MagicMock()
-    mock_ox._errors.InsufficientResponseError = InsufficientResponseError
-    mock_ox.features_from_bbox.side_effect = InsufficientResponseError()
+    mock_ox._errors.InsufficientResponseError = mock_insufficient_response_error
+    mock_ox.features_from_bbox.side_effect = mock_insufficient_response_error()
 
     bbox = (45.5, 45.0, -122.0, -122.5)
-    result = fetcher._fetch_amenities_batch.__wrapped__(fetcher, bbox)
+    result = fetcher._fetch_amenities_batch(bbox)
 
     assert result.empty
 
@@ -137,6 +141,10 @@ def test_fetch_with_tiling_amenities(mock_validator, mock_ox):
 def test_fetch_with_tiling_failure_threshold(mock_validator, mock_ox):
     """Test tiling failure threshold raises exception."""
     fetcher = OSMFetcher()
+    # Guard or initialize config before mutating it
+    if not isinstance(fetcher.config, dict):
+        fetcher.config = {}
+
     fetcher.bbox_limits["enable_tiling"] = True
     fetcher.bbox_limits["max_edge_degrees"] = 0.5
     fetcher.config.setdefault("bbox_limits", {}).setdefault("tiling", {})["failure_threshold"] = 0.0
@@ -151,22 +159,19 @@ def test_fetch_with_tiling_failure_threshold(mock_validator, mock_ox):
 
 
 @patch("src.pipeline.osm_fetcher.ox")
-def test_fetch_amenities_batch_mixed_results(mock_ox):
+def test_fetch_amenities_batch_mixed_results(mock_ox, mock_insufficient_response_error):
     """Test that some amenity types return data while others raise errors."""
     fetcher = OSMFetcher()
 
-    class InsufficientResponseError(Exception):
-        pass
-
     mock_ox._errors = MagicMock()
-    mock_ox._errors.InsufficientResponseError = InsufficientResponseError
+    mock_ox._errors.InsufficientResponseError = mock_insufficient_response_error
 
     call_count = 0
     def side_effect(*args, **kwargs):
         nonlocal call_count
         call_count += 1
         if call_count % 2 == 0:
-            raise InsufficientResponseError()
+            raise mock_insufficient_response_error()
         return gpd.GeoDataFrame(
             {"geometry": [Point(0, 0)], "name": ["Test"]}, crs="EPSG:4326"
         )
@@ -174,7 +179,7 @@ def test_fetch_amenities_batch_mixed_results(mock_ox):
     mock_ox.features_from_bbox.side_effect = side_effect
 
     bbox = (45.5, 45.0, -122.0, -122.5)
-    result = fetcher._fetch_amenities_batch.__wrapped__(fetcher, bbox)
+    result = fetcher._fetch_amenities_batch(bbox)
 
     # At least some results should come through
     assert not result.empty

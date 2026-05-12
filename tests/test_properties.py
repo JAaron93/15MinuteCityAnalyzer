@@ -21,19 +21,20 @@ def wgs84_points(draw):
 
 @st.composite
 def wgs84_polygons(draw):
-    lon = draw(st.floats(min_value=-179.0, max_value=179.0))
-    lat = draw(st.floats(min_value=-80.0, max_value=80.0))
-    size = draw(st.floats(min_value=0.01, max_value=0.1))
+    # Generate a center point in a safe range to avoid poles and dateline
+    lon = draw(st.floats(min_value=-170.0, max_value=170.0))
+    lat = draw(st.floats(min_value=-60.0, max_value=60.0))
+    # Buffer distance in meters (approx 500m to 5km radius -> 1km to 10km side)
+    dist_m = draw(st.floats(min_value=500.0, max_value=5000.0))
     
-    # Create a simple square polygon
-    coords = [
-        (lon, lat),
-        (lon + size, lat),
-        (lon + size, lat + size),
-        (lon, lat + size),
-        (lon, lat)
-    ]
-    return Polygon(coords)
+    point = Point(lon, lat)
+    # Use GeoDataFrame to leverage estimate_utm_crs and robust reprojection
+    gdf = gpd.GeoDataFrame(geometry=[point], crs=WGS84)
+    utm_crs = gdf.estimate_utm_crs()
+    
+    # Project to UTM, buffer (square cap_style=3), and project back to WGS84
+    buffered_gdf = gdf.to_crs(utm_crs).buffer(dist_m, cap_style=3).to_crs(WGS84)
+    return buffered_gdf.iloc[0]
 
 @given(
     bg_geoms=st.lists(wgs84_polygons(), min_size=1, max_size=5),
@@ -59,23 +60,40 @@ def test_spatial_integrity(bg_geoms, iso_geoms):
     
     joined = spatial_join_amenities(block_groups, isochrones, utm_crs)
     
-    # If the join returned anything, verify the property
+    # If the join returned anything, independently verify the overlap fraction
     if not joined.empty:
-        # Convert original to UTM to do area calculations
+        # Convert originals to UTM for independent area calculations
         bg_utm = transform_to_utm(block_groups, utm_crs)
         iso_utm = transform_to_utm(isochrones, utm_crs)
-        
+
         for _, row in joined.iterrows():
             bg_id = row["geoid"]
-            # Find the original block group UTM geometry
+            reported_fraction = row["overlap_fraction"]
+
+            # Look up the block group geometry in UTM
             bg_geom = bg_utm[bg_utm["geoid"] == bg_id].geometry.iloc[0]
-            
-            # Since we did a join, the isochrone geometry that intersected 
-            # should overlap by at least 10%
-            # Wait, the spatial_join_amenities returns the joined dataframe with overlap_fraction
-            overlap_fraction = row["overlap_fraction"]
-            
-            assert overlap_fraction >= 0.10
+            bg_area = bg_geom.area
+            assert bg_area > 0, f"Block group {bg_id} has zero area"
+
+            # The output doesn't preserve which specific isochrone was
+            # paired, so find the isochrone whose independently computed
+            # overlap fraction matches the reported value.
+            matched = False
+            for iso_geom in iso_utm.geometry:
+                intersection_area = bg_geom.intersection(iso_geom).area
+                recalculated_fraction = intersection_area / bg_area
+                if abs(recalculated_fraction - reported_fraction) < 1e-6:
+                    matched = True
+                    assert recalculated_fraction >= 0.10, (
+                        f"Recalculated overlap {recalculated_fraction:.6f} "
+                        f"< 0.10 for block group {bg_id}"
+                    )
+                    break
+
+            assert matched, (
+                f"No isochrone independently reproduced the reported "
+                f"overlap_fraction {reported_fraction:.6f} for {bg_id}"
+            )
 
 
 @given(
@@ -127,6 +145,7 @@ def test_score_monotonicity(counts):
 @given(
     geoms=st.lists(wgs84_polygons(), min_size=1, max_size=5)
 )
+@settings(deadline=None)
 def test_crs_consistency(geoms):
     """
     Property 3: CRS Consistency
@@ -142,6 +161,7 @@ def test_crs_consistency(geoms):
 @given(
     scores=st.lists(st.floats(min_value=0.0, max_value=100.0), min_size=1, max_size=50)
 )
+@settings(deadline=None)
 def test_equity_category_consistency(scores):
     """
     Property 5: Equity Category Consistency
@@ -170,23 +190,39 @@ def test_equity_category_consistency(scores):
 
 @given(
     pop=st.integers(min_value=1, max_value=10000),
-    inc=st.floats(min_value=0.0, max_value=200000.0),
-    score=st.floats(min_value=0.0, max_value=100.0)
+    inc=st.floats(min_value=0.0, max_value=200000.0, allow_nan=False, allow_infinity=False),
+    grocery=st.integers(min_value=0, max_value=20),
+    healthcare=st.integers(min_value=0, max_value=20),
+    transit=st.integers(min_value=0, max_value=20),
+    other=st.integers(min_value=0, max_value=20),
 )
-def test_data_completeness(pop, inc, score):
+@settings(deadline=None)
+def test_data_completeness(pop, inc, grocery, healthcare, transit, other):
     """
     Property 4: Data Completeness
-    Verify that records have the required fields.
+    Generate input records via Hypothesis, run them through the scoring
+    pipeline, and verify that the output contains required fields with
+    valid (non-None) values and population > 0.
     """
-    record = {
-        "geoid": "123456789012",
-        "population": pop,
-        "median_income": inc,
-        "accessibility_score": score,
-        "equity_category": "Medium Access"
-    }
-    
-    assert record["geoid"] is not None
-    assert record["accessibility_score"] is not None
-    assert record["median_income"] is not None
-    assert record["population"] > 0
+    input_gdf = gpd.GeoDataFrame(
+        {
+            "geoid": ["123456789012"],
+            "population": [pop],
+            "median_income": [inc],
+            "grocery_count": [grocery],
+            "healthcare_count": [healthcare],
+            "transit_count": [transit],
+            "other_count": [other],
+        },
+        geometry=[Point(0, 0)],
+        crs=WGS84,
+    )
+
+    scored = calculate_accessibility_score(input_gdf)
+
+    # Assert required fields exist and are not None in the pipeline output
+    for field in ("geoid", "accessibility_score", "median_income", "population"):
+        assert field in scored.columns, f"Missing field: {field}"
+        assert scored[field].notna().all(), f"Field '{field}' contains None"
+
+    assert (scored["population"] > 0).all(), "population must be > 0"

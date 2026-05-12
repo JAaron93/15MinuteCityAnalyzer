@@ -98,8 +98,8 @@ def calculate_equity_metrics(
     # Average accessibility score by income quartile
     # Use qcut to divide into 4 groups based on median_income
     try:
-        # Filter out records with 0 or NaN income for quartile calculation if necessary,
-        # but here we'll just use the data we have.
+        # Exclude zero income only for quartile calculation to avoid skewing
+        # the distribution or producing degenerate bins (DR-3.3.4).
         data_with_income = data[data["median_income"] > 0].copy()
         if len(data_with_income) >= 4:
             data_with_income["income_quartile"] = pd.qcut(

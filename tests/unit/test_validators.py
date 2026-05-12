@@ -115,6 +115,7 @@ def test_validate_crs_mismatch():
     df = pd.DataFrame({"geometry": [Point(0, 0)]})
     gdf = gpd.GeoDataFrame(df, crs="EPSG:3857")
     assert validator.validate_crs(gdf, "EPSG:4326") is True
+    assert gdf.crs.to_string() == "EPSG:4326"
 
 
 def test_repair_geometries_all_valid():

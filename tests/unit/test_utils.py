@@ -60,9 +60,10 @@ def test_non_retryable_404(retry_policy):
 
 
 @responses.activate
-def test_non_retryable_400(retry_policy):
+@pytest.mark.parametrize("status_code", [400, 401, 403])
+def test_non_retryable_errors(retry_policy, status_code):
     url = "http://example.com"
-    responses.add(responses.GET, url, status=400)
+    responses.add(responses.GET, url, status=status_code)
 
     @retry_with_policy(retry_policy)
     def failing_func(**kwargs):
@@ -70,40 +71,10 @@ def test_non_retryable_400(retry_policy):
         resp.raise_for_status()
         return resp.text
 
-    with pytest.raises(requests.exceptions.HTTPError):
+    with pytest.raises(requests.exceptions.HTTPError) as excinfo:
         failing_func()
-    assert len(responses.calls) == 1
-
-
-@responses.activate
-def test_non_retryable_401(retry_policy):
-    url = "http://example.com"
-    responses.add(responses.GET, url, status=401)
-
-    @retry_with_policy(retry_policy)
-    def failing_func(**kwargs):
-        resp = requests.get(url, **kwargs)
-        resp.raise_for_status()
-        return resp.text
-
-    with pytest.raises(requests.exceptions.HTTPError):
-        failing_func()
-    assert len(responses.calls) == 1
-
-
-@responses.activate
-def test_non_retryable_403(retry_policy):
-    url = "http://example.com"
-    responses.add(responses.GET, url, status=403)
-
-    @retry_with_policy(retry_policy)
-    def failing_func(**kwargs):
-        resp = requests.get(url, **kwargs)
-        resp.raise_for_status()
-        return resp.text
-
-    with pytest.raises(requests.exceptions.HTTPError):
-        failing_func()
+    
+    assert excinfo.value.response.status_code == status_code
     assert len(responses.calls) == 1
 
 
@@ -239,15 +210,20 @@ def test_retry_exhausts_all_attempts(retry_policy):
     """Test that all attempts are exhausted before raising."""
     retry_policy["attempts"] = 2
     retry_policy["base_delay_ms"] = 10
+    call_count = 0
 
     @retry_with_policy(retry_policy)
     def always_fail(**kwargs):
+        nonlocal call_count
+        call_count += 1
         resp = requests.models.Response()
         resp.status_code = 500
         raise requests.exceptions.HTTPError(response=resp)
 
     with pytest.raises(requests.exceptions.HTTPError):
         always_fail()
+    
+    assert call_count == retry_policy["attempts"]
 
 
 def test_setup_logging():

@@ -85,7 +85,7 @@ class OSMFetcher:
             raise Exception(msg) # Should be BoundingBoxTooLargeError
 
     @retry_with_policy({"attempts": 3, "per_request_timeout_s": 10}) # Simplified for internal use
-    def _fetch_amenities_batch(self, bbox: Tuple[float, float, float, float]) -> gpd.GeoDataFrame:
+    def _fetch_amenities_batch(self, bbox: Tuple[float, float, float, float], **kwargs) -> gpd.GeoDataFrame:
         """
         Internal batch fetcher for amenities.
         """

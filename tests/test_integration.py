@@ -69,6 +69,12 @@ def test_pipeline_to_dashboard_integration():
     # 5. Equity Category Assignment
     bg_final, metadata = assign_equity_category(bg_scored)
     
+    # Validate metadata
+    assert metadata is not None
+    assert "equity_thresholds.high_access_min" in metadata
+    assert "equity_thresholds.medium_access_min" in metadata
+    assert "equity_thresholds.validated_at" in metadata
+    
     # 6. Ensure CRS consistency
     assert bg_final.crs.to_string() == "EPSG:4326"
     
@@ -88,13 +94,22 @@ def test_pipeline_to_dashboard_integration():
         assert "equity_category" in loaded_df.columns
         assert loaded_df.crs.to_string() == "EPSG:4326"
         
+        # Concrete value assertions for the mock data
+        # With only 1 block group, score is normalized to 50.0 (city_min == city_max case)
+        # and 50.0 >= 40.0 (default medium threshold) gives "Medium Access"
+        assert loaded_df.iloc[0]["accessibility_score"] == 50.0
+        assert loaded_df.iloc[0]["equity_category"] == "Medium Access"
+        
         # 8. Dashboard metrics calculation
         metrics = calculate_equity_metrics(loaded_df, income_threshold=50000.0)
         assert metrics is not None
-        assert "total_block_groups" in metrics
+        assert metrics["total_block_groups"] == 1
+        assert metrics["total_population"] == 1500
+        assert metrics["city_avg_score"] == 50.0
+        assert metrics["pct_pop_low_access"] == 0.0  # It's Medium Access
     
     end_time = time.time()
     processing_time = end_time - start_time
     
     # Validate processing time
-    assert processing_time < 20.0 * 60  # Should be well under 20 minutes
+    assert processing_time < 30.0, f"Processing took {processing_time:.2f}s, expected < 30s"
