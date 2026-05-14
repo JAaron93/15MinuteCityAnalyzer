@@ -1,5 +1,6 @@
 import inspect
 import json
+import os
 import logging
 from typing import Any, Dict, Optional
 
@@ -73,7 +74,14 @@ def export_to_geoparquet(
                     
                     # Handle sequences and values
                     if isinstance(v, (list, tuple)):
-                        flat_metadata[final_key] = json.dumps(v)
+                        try:
+                            flat_metadata[final_key] = json.dumps(v)
+                        except (TypeError, ValueError) as e:
+                            logger.warning(
+                                f"Failed to JSON-serialize metadata sequence for '{final_key}': {e}. "
+                                "Falling back to string representation."
+                            )
+                            flat_metadata[final_key] = str(v)
                     else:
                         flat_metadata[final_key] = str(v)
 
@@ -99,7 +107,6 @@ def export_to_geoparquet(
         raise
 
     # Validate size
-    import os
     size_mb = os.path.getsize(output_path) / (1024 * 1024)
     logger.info(f"Exported file size: {size_mb:.2f} MB")
 

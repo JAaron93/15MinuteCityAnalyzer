@@ -3,7 +3,7 @@ import random
 import logging
 import functools
 import requests
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Dict, Optional, TypeVar
 
 T = TypeVar("T")
 
