@@ -16,7 +16,7 @@ References:
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 import geopandas as gpd
 import numpy as np
@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 # Custom exceptions
 # ---------------------------------------------------------------------------
 
+
 class ThresholdConfigError(Exception):
     """Raised when equity threshold configuration is invalid."""
 
@@ -41,11 +42,13 @@ class ThresholdConfigError(Exception):
 # Configuration helpers
 # ---------------------------------------------------------------------------
 
+
 def _load_config(config_path: str = "pipeline_config.yaml") -> Dict[str, Any]:
     """Load pipeline configuration from YAML."""
     try:
         with open(config_path, "r") as f:
-            return yaml.safe_load(f)
+            from typing import cast
+            return cast(Dict[str, Any], yaml.safe_load(f))
     except FileNotFoundError as e:
         msg = f"_load_config: Configuration file '{config_path}' not found."
         logger.error(msg)
@@ -97,6 +100,7 @@ def validate_threshold_config(config: Dict[str, Any]) -> None:
 # Spatial join
 # ---------------------------------------------------------------------------
 
+
 def spatial_join_amenities(
     block_groups: gpd.GeoDataFrame,
     isochrones: gpd.GeoDataFrame,
@@ -133,9 +137,7 @@ def spatial_join_amenities(
 
     if block_groups.empty or isochrones.empty:
         logger.warning("Empty input to spatial join; returning empty result.")
-        return gpd.GeoDataFrame(
-            columns=["geoid", "amenity_type", "overlap_fraction"]
-        )
+        return gpd.GeoDataFrame(columns=["geoid", "amenity_type", "overlap_fraction"])
 
     # Project to UTM for accurate area calculations
     bg_utm = transform_to_utm(block_groups.copy(), utm_crs)
@@ -159,22 +161,22 @@ def spatial_join_amenities(
             "Spatial join produced zero intersections. Check CRS alignment "
             "and that isochrones overlap with block groups."
         )
-        return gpd.GeoDataFrame(
-            columns=["geoid", "amenity_type", "overlap_fraction"]
-        )
+        return gpd.GeoDataFrame(columns=["geoid", "amenity_type", "overlap_fraction"])
 
     # Compute overlap fraction per pair in a vectorized manner
     # We align the isochrone geometries with the joined block groups
     iso_geoms = iso_utm.geometry.loc[joined["index_right"]]
     iso_geoms.index = joined.index  # Align indices for vectorized operation
-    
+
     # Calculate intersection areas (vectorized)
     intersection_areas = joined.geometry.intersection(iso_geoms).area
     block_areas = joined.geometry.area
-    
+
     # Guard against degenerate geometries with zero area
     if (block_areas == 0).any():
-        logger.warning("Some block groups have zero area; excluding from overlap calculation.")
+        logger.warning(
+            "Some block groups have zero area; excluding from overlap calculation."
+        )
         valid_mask = block_areas > 0
         joined = joined[valid_mask]
         intersection_areas = intersection_areas[valid_mask]
@@ -182,15 +184,23 @@ def spatial_join_amenities(
 
     # Calculate overlap fractions
     overlap_fractions = intersection_areas / block_areas
-    
+
     # Filter by threshold
     mask = overlap_fractions >= min_overlap
-    
-    result_df = gpd.GeoDataFrame({
-        "geoid": joined["geoid"].values[mask],
-        "amenity_type": joined["amenity_type"].values[mask],
-        "overlap_fraction": overlap_fractions.values[mask] if hasattr(overlap_fractions, "values") else overlap_fractions[mask],
-    }, geometry=joined.geometry.values[mask], crs=joined.crs)
+
+    result_df = gpd.GeoDataFrame(
+        {
+            "geoid": joined["geoid"].values[mask],
+            "amenity_type": joined["amenity_type"].values[mask],
+            "overlap_fraction": (
+                overlap_fractions.values[mask]
+                if hasattr(overlap_fractions, "values")
+                else overlap_fractions[mask]
+            ),
+        },
+        geometry=joined.geometry.values[mask],
+        crs=joined.crs,
+    )
 
     logger.info(
         f"Spatial join complete: {len(result_df)} block-group–amenity pairs "
@@ -203,6 +213,7 @@ def spatial_join_amenities(
 # ---------------------------------------------------------------------------
 # Amenity counting
 # ---------------------------------------------------------------------------
+
 
 def count_amenities_by_type(
     joined: pd.DataFrame,
@@ -273,6 +284,7 @@ def count_amenities_by_type(
 # ---------------------------------------------------------------------------
 # Accessibility scoring
 # ---------------------------------------------------------------------------
+
 
 def calculate_accessibility_score(
     block_groups: gpd.GeoDataFrame,
@@ -358,6 +370,7 @@ def calculate_accessibility_score(
 # ---------------------------------------------------------------------------
 # Equity category assignment
 # ---------------------------------------------------------------------------
+
 
 def assign_equity_category(
     block_groups: gpd.GeoDataFrame,
@@ -456,6 +469,7 @@ def assign_equity_category(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _categorise(
     scores: pd.Series,
     high_min: float,
@@ -499,22 +513,22 @@ def _run_sensitivity_test(
     # +5 shift
     high_plus = min(high_min + 5, 100)
     med_plus = min(med_min + 5, 100)
-    
+
     # Ensure high > med after clamping (DR-3.3.4)
     if high_plus <= med_plus:
         med_plus = max(med_min, high_plus - 1)
-        
+
     shifted_plus = _categorise(scores, high_plus, med_plus)
     stability_plus = (baseline == shifted_plus).mean()
 
     # -5 shift
     high_minus = max(high_min - 5, 0)
     med_minus = max(med_min - 5, 0)
-    
+
     # Ensure high > med after clamping (DR-3.3.4)
     if high_minus <= med_minus:
         high_minus = med_minus + 1
-        
+
     shifted_minus = _categorise(scores, high_minus, med_minus)
     stability_minus = (baseline == shifted_minus).mean()
 

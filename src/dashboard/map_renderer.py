@@ -23,9 +23,7 @@ def create_choropleth_map(
     # Centroid for initial view
     centroid = data.geometry.unary_union.centroid
     m = folium.Map(
-        location=[centroid.y, centroid.x],
-        zoom_start=12,
-        tiles="CartoDB positron"
+        location=[centroid.y, centroid.x], zoom_start=12, tiles="CartoDB positron"
     )
 
     # Define colormap
@@ -37,9 +35,9 @@ def create_choropleth_map(
             caption="Accessibility Score",
         )
 
-        def fill_color_fn(x):
+        def fill_color_fn(x: dict) -> str:
             score = x["properties"].get("accessibility_score", 0)
-            return colormap(score)
+            return str(colormap(score))
 
     else:  # median_income
         vmin = data["median_income"].min(skipna=True)
@@ -55,9 +53,9 @@ def create_choropleth_map(
             caption="Median Household Income ($)",
         )
 
-        def fill_color_fn(x):
+        def fill_color_fn(x: dict) -> str:
             income = x["properties"].get("median_income", vmin)
-            return colormap(income)
+            return str(colormap(income))
 
     # Add GeoJson with tooltips
     geojson_layer = folium.GeoJson(

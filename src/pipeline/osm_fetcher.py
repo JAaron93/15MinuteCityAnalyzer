@@ -1,15 +1,17 @@
 import logging
-import yaml
-import osmnx as ox
+from typing import Any, Tuple
+
 import geopandas as gpd
+import osmnx as ox
 import pandas as pd
-from typing import List, Tuple, Optional, Dict, Any
-from shapely.geometry import box, MultiPoint, MultiPolygon, Point, Polygon
-from src.pipeline.utils import retry_with_policy
-from src.pipeline.tile_merger import TileMerger
+import yaml
+
 from src.pipeline.data_validator import DataValidator
+from src.pipeline.tile_merger import TileMerger
+from src.pipeline.utils import retry_with_policy
 
 logger = logging.getLogger(__name__)
+
 
 class OSMFetcher:
     """
@@ -19,12 +21,12 @@ class OSMFetcher:
     def __init__(self, config_path: str = "pipeline_config.yaml"):
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
-        
+
         self.bbox_limits = self.config.get("bbox_limits", {})
         self.retry_policy = self.config.get("retry_policy", {})
-        
+
         # Configure OSMnx
-        ox.settings.timeout = self.retry_policy.get("per_request_timeout_s", 10)
+        ox.settings.timeout = self.retry_policy.get("per_request_timeout_s", 10)  # type: ignore[attr-defined]
         ox.settings.use_cache = True
         ox.settings.log_console = False
 
@@ -32,13 +34,19 @@ class OSMFetcher:
         self.amenity_tags = {
             "grocery": {"shop": ["supermarket", "convenience", "deli"]},
             "healthcare": {"amenity": ["hospital", "clinic", "doctors", "pharmacy"]},
-            "transit": {"amenity": ["bus_station", "train_station", "subway_entrance"], 
-                        "highway": ["bus_stop"]},
-            "other": {"amenity": ["library", "post_office", "school"], 
-                      "leisure": ["park", "playground"]}
+            "transit": {
+                "amenity": ["bus_station", "train_station", "subway_entrance"],
+                "highway": ["bus_stop"],
+            },
+            "other": {
+                "amenity": ["library", "post_office", "school"],
+                "leisure": ["park", "playground"],
+            },
         }
 
-    def fetch_amenities(self, bbox: Tuple[float, float, float, float]) -> gpd.GeoDataFrame:
+    def fetch_amenities(
+        self, bbox: Tuple[float, float, float, float]
+    ) -> gpd.GeoDataFrame:
         """
         Fetches POIs for all amenity types within the bounding box (FR-1.1.1, FR-1.1.2).
         """
@@ -48,7 +56,7 @@ class OSMFetcher:
             df = self._fetch_with_tiling(bbox, "amenities")
         else:
             df = self._fetch_amenities_batch(bbox)
-        
+
         DataValidator.validate_osm_data(df)
         return df
 
@@ -71,31 +79,35 @@ class OSMFetcher:
         edge_ns = abs(north - south)
         edge_ew = abs(east - west)
         area = edge_ns * edge_ew
-        
+
         max_edge = self.bbox_limits.get("max_edge_degrees", 1.0)
         max_area = self.bbox_limits.get("max_area_sq_degrees", 1.0)
-        
-        if (edge_ns > max_edge or edge_ew > max_edge or area > max_area) and not self.bbox_limits.get("enable_tiling", False):
+
+        if (
+            edge_ns > max_edge or edge_ew > max_edge or area > max_area
+        ) and not self.bbox_limits.get("enable_tiling", False):
             msg = (
                 f"Bounding box exceeds limits: edges={edge_ns:.2f}°, {edge_ew:.2f}° (max={max_edge:.2f}°), "
                 f"area={area:.2f} sq° (max={max_area:.2f} sq°). "
                 f"Enable tiling to process larger areas."
             )
             logger.error(msg)
-            raise Exception(msg) # Should be BoundingBoxTooLargeError
+            raise Exception(msg)  # Should be BoundingBoxTooLargeError
 
-    def _fetch_amenities_batch(self, bbox: Tuple[float, float, float, float]) -> gpd.GeoDataFrame:
+    def _fetch_amenities_batch(
+        self, bbox: Tuple[float, float, float, float]
+    ) -> gpd.GeoDataFrame:
         """
         Internal batch fetcher for amenities.
         """
         north, south, east, west = bbox
-        
+
         @retry_with_policy(self.retry_policy)
-        def _execute():
+        def _execute() -> Any:
             all_pois = []
             for amenity_type, tags in self.amenity_tags.items():
                 try:
-                    pois = ox.features_from_bbox(north, south, east, west, tags)
+                    pois = ox.features_from_bbox(bbox, tags=tags)  # type: ignore[arg-type]
                     if not pois.empty:
                         pois["amenity_type"] = amenity_type
                         all_pois.append(pois)
@@ -106,10 +118,10 @@ class OSMFetcher:
             return all_pois
 
         all_pois = _execute()
-        
+
         if not all_pois:
             return gpd.GeoDataFrame()
-        
+
         return pd.concat(all_pois, ignore_index=False)
 
     def _fetch_network_batch(self, bbox: Tuple[float, float, float, float]) -> Any:
@@ -118,48 +130,52 @@ class OSMFetcher:
         """
         north, south, east, west = bbox
         logger.info(f"Fetching street network for bbox: {bbox}")
-        
+
         @retry_with_policy(self.retry_policy)
-        def _execute():
-            return ox.graph_from_bbox(north, south, east, west, network_type="walk")
-        
+        def _execute() -> Any:
+            return ox.graph_from_bbox(bbox, network_type="walk")
+
         G = _execute()
-        logger.info(f"Fetched network with {len(G.nodes)} nodes and {len(G.edges)} edges.")
+        logger.info(
+            f"Fetched network with {len(G.nodes)} nodes and {len(G.edges)} edges."
+        )
         return G
 
-    def _fetch_with_tiling(self, bbox: Tuple[float, float, float, float], mode: str) -> Any:
+    def _fetch_with_tiling(
+        self, bbox: Tuple[float, float, float, float], mode: str
+    ) -> Any:
         """
         Implements bbox tiling logic (FR-1.1.6).
         """
         north, south, east, west = bbox
         max_edge = self.bbox_limits.get("max_edge_degrees", 1.0)
         max_area = self.bbox_limits.get("max_area_sq_degrees", 1.0)
-        
+
         # Calculate number of tiles needed
         edge_ns = north - south
         edge_ew = east - west
-        
+
         nx = int(edge_ew // max_edge) + 1
         ny = int(edge_ns // max_edge) + 1
-        
+
         # Ensure each tile is within area limit too
         while (edge_ew / nx) * (edge_ns / ny) > max_area:
             if edge_ew / nx > edge_ns / ny:
                 nx += 1
             else:
                 ny += 1
-        
+
         logger.info(f"Subdividing bbox into {nx}x{ny} tiles.")
-        
+
         dx = edge_ew / nx
         dy = edge_ns / ny
-        
+
         tiles_data = []
         skipped_count = 0
         total_tiles = nx * ny
-        
+
         merger = TileMerger()
-        
+
         for i in range(nx):
             for j in range(ny):
                 tile_west = west + i * dx
@@ -167,13 +183,13 @@ class OSMFetcher:
                 tile_south = south + j * dy
                 tile_north = south + (j + 1) * dy
                 tile_bbox = (tile_north, tile_south, tile_east, tile_west)
-                
+
                 try:
                     if mode == "amenities":
                         data = self._fetch_amenities_batch(tile_bbox)
                     else:
                         data = self._fetch_network_batch(tile_bbox)
-                    
+
                     if mode == "amenities":
                         if not data.empty:
                             tiles_data.append(data)
@@ -183,10 +199,16 @@ class OSMFetcher:
                 except Exception as e:
                     logger.warning(f"Failed to fetch tile ({i}, {j}): {e}")
                     skipped_count += 1
-        
-        failure_threshold = self.config.get("bbox_limits", {}).get("tiling", {}).get("failure_threshold", 0.20)
+
+        failure_threshold = (
+            self.config.get("bbox_limits", {})
+            .get("tiling", {})
+            .get("failure_threshold", 0.20)
+        )
         if skipped_count / total_tiles > failure_threshold:
-            raise Exception(f"Tiling failure: {skipped_count}/{total_tiles} tiles failed (threshold {failure_threshold}).")
+            raise Exception(
+                f"Tiling failure: {skipped_count}/{total_tiles} tiles failed (threshold {failure_threshold})."
+            )
 
         if mode == "amenities":
             return merger.merge_pois(tiles_data)

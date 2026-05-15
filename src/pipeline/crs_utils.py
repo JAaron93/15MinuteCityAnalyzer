@@ -10,7 +10,7 @@ References:
 """
 
 import logging
-from typing import Tuple, Union
+from typing import Tuple
 
 import geopandas as gpd
 from pyproj import CRS
@@ -48,7 +48,7 @@ def determine_utm_zone(
     """
     try:
         north, south, east, west = bbox
-        
+
         # Validate coordinate ranges
         if not (-90 <= south <= north <= 90):
             raise ValueError(f"Invalid latitude range: south={south}, north={north}")
@@ -58,7 +58,7 @@ def determine_utm_zone(
             raise ValueError(
                 f"Antimeridian-crossing bounding boxes not supported: west={west}, east={east}"
             )
-        
+
         centroid_lat = (north + south) / 2.0
         centroid_lon = (east + west) / 2.0
 
@@ -69,7 +69,8 @@ def determine_utm_zone(
             geometry=[Point(centroid_lon, centroid_lat)],
             crs="EPSG:4326",
         )
-        utm_crs = centroid_gdf.estimate_utm_crs()
+        from typing import cast
+        utm_crs = cast(CRS, centroid_gdf.estimate_utm_crs())
 
         logger.info(
             f"Determined UTM CRS: {utm_crs} "
@@ -166,9 +167,7 @@ def validate_wgs84(gdf: gpd.GeoDataFrame) -> None:
         CRSTransformationError: If the CRS is not WGS84.
     """
     if gdf.crs is None:
-        raise CRSTransformationError(
-            "GeoDataFrame has no CRS set. Expected EPSG:4326."
-        )
+        raise CRSTransformationError("GeoDataFrame has no CRS set. Expected EPSG:4326.")
 
     if not gdf.crs.equals(WGS84):
         raise CRSTransformationError(

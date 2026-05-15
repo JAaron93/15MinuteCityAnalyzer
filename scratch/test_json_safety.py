@@ -27,9 +27,12 @@ def test_json_serialization_fallback(caplog):
         
         # This should not raise TypeError
         export_to_geoparquet(gdf, output_path, metadata=metadata)
+
+        # Verify file was created
+        assert os.path.exists(output_path), "Output file should exist"
         
         # Check logs for the fallback warning
-        assert "Failed to JSON-serialize metadata sequence for 'unsafe_list'" in caplog.text
+        assert "Failed to JSON-serialize metadata sequence for 'unsafe_list'" in caplog.text  # noqa: E501
         assert "Falling back to string representation" in caplog.text
 
 if __name__ == "__main__":

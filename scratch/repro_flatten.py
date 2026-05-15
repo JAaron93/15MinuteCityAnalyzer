@@ -27,11 +27,13 @@ def test_flatten_collisions(tmp_path, caplog):
     # Note: GeoPandas might store its own metadata, custom_metadata should be there too
     # Actually, pyarrow's table.schema.metadata contains everything
     # Let's find our keys
-    flat_meta = {k.decode('utf-8'): v.decode('utf-8') for k, v in meta.items() if not k.startswith(b'geo')}
+    flat_meta = {k.decode('utf-8'): v.decode('utf-8') for k, v in meta.items() if not k.startswith(b'geo')}  # noqa: E501
     
-    # Assert that flattening preserves both literal dotted key and nested value (with disambiguation)
+    # Assert that flattening preserves both literal dotted key and nested value (with disambiguation)  # noqa: E501
     assert flat_meta.get("a.b") == "original"
     assert flat_meta.get("a.b.1") == "nested"
+    # Verify collision warning was logged
+    assert any("collision" in record.message.lower() for record in caplog.records)
 
 def test_flatten_sequences(tmp_path):
     output_path = tmp_path / "sequences.parquet"
@@ -46,7 +48,7 @@ def test_flatten_sequences(tmp_path):
     
     table = pq.read_table(output_path)
     meta = table.schema.metadata
-    flat_meta = {k.decode('utf-8'): v.decode('utf-8') for k, v in meta.items() if not k.startswith(b'geo')}
+    flat_meta = {k.decode('utf-8'): v.decode('utf-8') for k, v in meta.items() if not k.startswith(b'geo')}  # noqa: E501
     
     # Assert that sequences are JSON-serialized
     assert flat_meta.get('list') == '[1, 2, 3]'

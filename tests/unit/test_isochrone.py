@@ -7,13 +7,10 @@ Tests cover:
 - Edge cases: empty graphs, unreachable nodes
 """
 
-import math
 from unittest.mock import patch
 
 import geopandas as gpd
 import networkx as nx
-import numpy as np
-import pytest
 from shapely.geometry import Point, Polygon
 
 from src.pipeline.isochrone import (
@@ -87,9 +84,7 @@ class TestCalculateIsochrone:
 
     def test_speed_affects_area(self) -> None:
         """Higher walking speed should produce a larger isochrone."""
-        center = Point(
-            self.graph.nodes[55]["x"], self.graph.nodes[55]["y"]
-        )
+        center = Point(self.graph.nodes[55]["x"], self.graph.nodes[55]["y"])
 
         slow = calculate_isochrone(
             self.graph, center, walk_time_minutes=15, walk_speed_kmh=3.0
@@ -103,7 +98,7 @@ class TestCalculateIsochrone:
         assert fast.area >= slow.area
 
     def test_far_point_handled_gracefully(self) -> None:
-        """A point far from the network should be handled gracefully, potentially returning a Polygon or None."""
+        """A point far from the network should be handled gracefully, potentially returning a Polygon or None."""  # noqa: E501
         far_point = Point(-100.0, 10.0)  # Nowhere near the graph
 
         result = calculate_isochrone(
@@ -119,9 +114,7 @@ class TestCalculateIsochrone:
 
     def test_very_short_time_returns_small_isochrone(self) -> None:
         """Very short walk time should produce a smaller isochrone."""
-        center = Point(
-            self.graph.nodes[55]["x"], self.graph.nodes[55]["y"]
-        )
+        center = Point(self.graph.nodes[55]["x"], self.graph.nodes[55]["y"])
 
         short = calculate_isochrone(
             self.graph, center, walk_time_minutes=1, walk_speed_kmh=4.5

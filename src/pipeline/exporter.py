@@ -1,25 +1,23 @@
 import inspect
 import json
-import os
 import logging
+import os
 from typing import Any, Dict, Optional
 
 import geopandas as gpd
 import pyarrow.parquet as pq
-
 
 logger = logging.getLogger(__name__)
 
 
 class FileSizeLimitError(RuntimeError):
     """Raised when the exported file size exceeds the limit."""
+
     pass
 
 
 def export_to_geoparquet(
-    df: gpd.GeoDataFrame,
-    output_path: str,
-    metadata: Optional[Dict[str, Any]] = None
+    df: gpd.GeoDataFrame, output_path: str, metadata: Optional[Dict[str, Any]] = None
 ) -> None:
     """
     Exports the GeoDataFrame to a GeoParquet file with snappy compression.
@@ -42,11 +40,7 @@ def export_to_geoparquet(
     # The spec mentions adding metadata to GeoParquet file (processing date,
     # params, etc). GeoPandas 0.13+ supports custom_metadata in to_parquet.
 
-    export_kwargs = {
-        "path": output_path,
-        "compression": "snappy",
-        "index": False
-    }
+    export_kwargs = {"path": output_path, "compression": "snappy", "index": False}
 
     if metadata:
         # Convert nested metadata to flattened string keys for pyarrow compatibility
@@ -55,7 +49,7 @@ def export_to_geoparquet(
         def _flatten(d: Dict[str, Any], prefix: str = "") -> None:
             for k, v in d.items():
                 base_key = f"{prefix}{k}"
-                
+
                 if isinstance(v, dict):
                     _flatten(v, f"{base_key}.")
                 else:
@@ -65,13 +59,13 @@ def export_to_geoparquet(
                     while final_key in flat_metadata:
                         final_key = f"{base_key}.{counter}"
                         counter += 1
-                    
+
                     if final_key != base_key:
                         logger.warning(
                             f"Metadata key collision detected: '{base_key}' already exists. "
                             f"Using disambiguated key: '{final_key}'"
                         )
-                    
+
                     # Handle sequences and values
                     if isinstance(v, (list, tuple)):
                         try:
@@ -91,8 +85,7 @@ def export_to_geoparquet(
     # Check if underlying ParquetWriter supports custom_metadata
     # (capability check)
     writer_params = inspect.signature(pq.ParquetWriter.__init__).parameters
-    if "custom_metadata" in export_kwargs and \
-       "custom_metadata" not in writer_params:
+    if "custom_metadata" in export_kwargs and "custom_metadata" not in writer_params:
         logger.warning(
             "Custom metadata not supported by this pyarrow version. "
             "Removing from export_kwargs."
@@ -113,9 +106,7 @@ def export_to_geoparquet(
     if size_mb <= 50:
         return
 
-    logger.warning(
-        "File size exceeds 50 MB limit. Attempting remediation..."
-    )
+    logger.warning("File size exceeds 50 MB limit. Attempting remediation...")
 
     # Remediation 1: Simplification
     tolerances = [0.0001, 0.0005, 0.001]
@@ -128,9 +119,7 @@ def export_to_geoparquet(
         df_simplified.to_parquet(**export_kwargs)
 
         size_mb = os.path.getsize(output_path) / (1024 * 1024)
-        logger.info(
-            f"File size after simplification (tol={tol}): {size_mb:.2f} MB"
-        )
+        logger.info(f"File size after simplification (tol={tol}): {size_mb:.2f} MB")
 
         if size_mb <= 50:
             return
@@ -141,6 +130,5 @@ def export_to_geoparquet(
         "(not fully implemented)."
     )
     raise FileSizeLimitError(
-        f"File size {size_mb:.2f} MB exceeds 50 MB "
-        "after all simplification steps."
+        f"File size {size_mb:.2f} MB exceeds 50 MB " "after all simplification steps."
     )

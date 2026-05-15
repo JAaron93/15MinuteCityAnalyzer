@@ -1,4 +1,4 @@
-"""Unit tests for spatial join, scoring, and equity categorisation (Task 3.3 / 6.2.7–6.2.12).
+"""Unit tests for spatial join, scoring, and equity categorisation (Task 3.3 / 6.2.7–6.2.12).  # noqa: E501
 
 Tests cover:
 - Spatial join with area-overlap threshold
@@ -14,10 +14,9 @@ Tests cover:
 from unittest.mock import patch
 
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 import pytest
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import box
 
 from src.pipeline.crs_utils import determine_utm_zone
 from src.pipeline.scoring import (
@@ -30,10 +29,10 @@ from src.pipeline.scoring import (
     validate_total_amenities,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_block_groups(n: int = 5) -> gpd.GeoDataFrame:
     """Create synthetic block groups as a grid of squares."""
@@ -124,6 +123,7 @@ def _default_config() -> dict:
 # Tests: spatial_join_amenities (task 3.3.2)
 # ---------------------------------------------------------------------------
 
+
 class TestSpatialJoinAmenities:
     """Tests for spatial_join_amenities() — task 6.2.7."""
 
@@ -136,9 +136,7 @@ class TestSpatialJoinAmenities:
 
     def test_returns_geodataframe(self) -> None:
         """Result must be a GeoDataFrame."""
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             result = spatial_join_amenities(
                 self.block_groups, self.isochrones, self.utm_crs
             )
@@ -146,9 +144,7 @@ class TestSpatialJoinAmenities:
 
     def test_expected_columns_present(self) -> None:
         """Result must have geoid, amenity_type, and overlap_fraction columns."""
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             result = spatial_join_amenities(
                 self.block_groups, self.isochrones, self.utm_crs
             )
@@ -158,9 +154,7 @@ class TestSpatialJoinAmenities:
 
     def test_all_amenity_types_represented(self) -> None:
         """Each of the four amenity types should appear in the join result."""
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             result = spatial_join_amenities(
                 self.block_groups, self.isochrones, self.utm_crs
             )
@@ -183,16 +177,15 @@ class TestSpatialJoinAmenities:
     def test_empty_isochrones_returns_empty(self) -> None:
         """Empty isochrones input should return an empty GeoDataFrame."""
         empty_iso = gpd.GeoDataFrame(
-            {"amenity_type": pd.Series(dtype=str), "geometry": gpd.GeoSeries(dtype="geometry")},
+            {
+                "amenity_type": pd.Series(dtype=str),
+                "geometry": gpd.GeoSeries(dtype="geometry"),
+            },
             geometry="geometry",
             crs="EPSG:4326",
         )
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
-            result = spatial_join_amenities(
-                self.block_groups, empty_iso, self.utm_crs
-            )
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
+            result = spatial_join_amenities(self.block_groups, empty_iso, self.utm_crs)
         assert isinstance(result, gpd.GeoDataFrame)
         assert result.empty
 
@@ -214,10 +207,10 @@ class TestSpatialJoinAmenities:
         assert len(result_high) <= len(result_low)
 
 
-
 # ---------------------------------------------------------------------------
 # Tests: validate_threshold_config (task 6.2.11)
 # ---------------------------------------------------------------------------
+
 
 class TestValidateThresholdConfig:
     """Tests for threshold validation at pipeline startup."""
@@ -266,6 +259,7 @@ class TestValidateThresholdConfig:
 # Tests: calculate_accessibility_score (tasks 6.2.9, 6.2.10)
 # ---------------------------------------------------------------------------
 
+
 class TestCalculateAccessibilityScore:
     """Tests for raw_score and accessibility_score computation."""
 
@@ -294,16 +288,11 @@ class TestCalculateAccessibilityScore:
         """raw_score should equal the capped weighted sum."""
         bg = self._make_scored_bg(grocery=2, healthcare=1, transit=5, other=3)
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             result = calculate_accessibility_score(bg)
 
         expected_raw = (
-            0.35 * min(2, 5)
-            + 0.30 * min(1, 3)
-            + 0.25 * min(5, 10)
-            + 0.10 * min(3, 5)
+            0.35 * min(2, 5) + 0.30 * min(1, 3) + 0.25 * min(5, 10) + 0.10 * min(3, 5)
         )
         assert "raw_score" in result.columns
         assert abs(result["raw_score"].iloc[0] - expected_raw) < 1e-6
@@ -312,9 +301,7 @@ class TestCalculateAccessibilityScore:
         """Counts above the cap should be clamped."""
         bg = self._make_scored_bg(grocery=20, healthcare=10, transit=50, other=20)
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             result = calculate_accessibility_score(bg)
 
         # All at max caps
@@ -324,9 +311,7 @@ class TestCalculateAccessibilityScore:
     def test_raw_score_stored_separately(self) -> None:
         """raw_score must be a separate column in the output."""
         bg = self._make_scored_bg()
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             result = calculate_accessibility_score(bg)
 
         assert "raw_score" in result.columns
@@ -352,9 +337,7 @@ class TestCalculateAccessibilityScore:
             crs="EPSG:4326",
         )
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             result = calculate_accessibility_score(bg)
 
         assert (result["accessibility_score"] == 50.0).all()
@@ -371,13 +354,14 @@ class TestCalculateAccessibilityScore:
                 "other_count": list(range(10)),
                 "total_amenities": [4 * i for i in range(10)],
             },
-            geometry=[box(-117.6 + i * 0.01, 33.8, -117.59 + i * 0.01, 33.81) for i in range(10)],
+            geometry=[
+                box(-117.6 + i * 0.01, 33.8, -117.59 + i * 0.01, 33.81)
+                for i in range(10)
+            ],
             crs="EPSG:4326",
         )
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             result = calculate_accessibility_score(bg)
 
         assert result["accessibility_score"].min() >= 0.0
@@ -402,9 +386,7 @@ class TestCalculateAccessibilityScore:
             crs="EPSG:4326",
         )
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             result = calculate_accessibility_score(bg)
 
         # raw_score should be strictly increasing
@@ -427,9 +409,7 @@ class TestCalculateAccessibilityScore:
             "other": 0.10,
         }
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=custom_config
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=custom_config):
             result = calculate_accessibility_score(bg)
 
         expected_raw = 0.50 * 2 + 0.20 * 1 + 0.20 * 5 + 0.10 * 3
@@ -439,6 +419,7 @@ class TestCalculateAccessibilityScore:
 # ---------------------------------------------------------------------------
 # Tests: assign_equity_category (tasks 6.2.11, 6.2.12)
 # ---------------------------------------------------------------------------
+
 
 class TestAssignEquityCategory:
     """Tests for equity category assignment and validation."""
@@ -451,7 +432,10 @@ class TestAssignEquityCategory:
                 "geoid": [f"G{i}" for i in range(n)],
                 "accessibility_score": scores,
             },
-            geometry=[box(-117.6 + i * 0.01, 33.8, -117.59 + i * 0.01, 33.81) for i in range(n)],
+            geometry=[
+                box(-117.6 + i * 0.01, 33.8, -117.59 + i * 0.01, 33.81)
+                for i in range(n)
+            ],
             crs="EPSG:4326",
         )
 
@@ -460,15 +444,13 @@ class TestAssignEquityCategory:
         scores = [20.0, 50.0, 80.0]
         bg = self._make_scored_data(scores)
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             result, metadata = assign_equity_category(bg)
 
         cats = result["equity_category"].tolist()
-        assert cats[0] == "Low Access"     # 20 < 40
+        assert cats[0] == "Low Access"  # 20 < 40
         assert cats[1] == "Medium Access"  # 40 ≤ 50 < 70
-        assert cats[2] == "High Access"    # 80 ≥ 70
+        assert cats[2] == "High Access"  # 80 ≥ 70
 
     def test_boundary_values(self) -> None:
         """Scores exactly at thresholds should be categorised correctly."""
@@ -476,18 +458,16 @@ class TestAssignEquityCategory:
         scores = [0.0, 39.99, 40.0, 69.99, 70.0, 100.0]
         bg = self._make_scored_data(scores)
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             result, _ = assign_equity_category(bg)
 
         cats = result["equity_category"].tolist()
-        assert cats[0] == "Low Access"      # 0
-        assert cats[1] == "Low Access"      # 39.99
-        assert cats[2] == "Medium Access"   # 40.0
-        assert cats[3] == "Medium Access"   # 69.99
-        assert cats[4] == "High Access"     # 70.0
-        assert cats[5] == "High Access"     # 100.0
+        assert cats[0] == "Low Access"  # 0
+        assert cats[1] == "Low Access"  # 39.99
+        assert cats[2] == "Medium Access"  # 40.0
+        assert cats[3] == "Medium Access"  # 69.99
+        assert cats[4] == "High Access"  # 70.0
+        assert cats[5] == "High Access"  # 100.0
 
     def test_reads_thresholds_from_config(self) -> None:
         """Thresholds must be read from config, not hard-coded (task 6.2.12)."""
@@ -498,24 +478,20 @@ class TestAssignEquityCategory:
         custom_config["equity_thresholds"]["high_access_min"] = 80
         custom_config["equity_thresholds"]["medium_access_min"] = 50
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=custom_config
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=custom_config):
             result, _ = assign_equity_category(bg)
 
         cats = result["equity_category"].tolist()
-        assert cats[0] == "Low Access"      # 30 < 50
-        assert cats[1] == "Medium Access"   # 50 ≤ 60 < 80
-        assert cats[2] == "High Access"     # 90 ≥ 80
+        assert cats[0] == "Low Access"  # 30 < 50
+        assert cats[1] == "Medium Access"  # 50 ≤ 60 < 80
+        assert cats[2] == "High Access"  # 90 ≥ 80
 
     def test_metadata_contains_all_seven_keys(self) -> None:
         """Metadata must include all seven equity_thresholds.* keys."""
         scores = [20.0, 50.0, 80.0]
         bg = self._make_scored_data(scores)
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             _, metadata = assign_equity_category(bg)
 
         required_keys = [
@@ -530,7 +506,9 @@ class TestAssignEquityCategory:
         assert "equity_thresholds" in metadata
         thresholds = metadata["equity_thresholds"]
         for key in required_keys:
-            assert key in thresholds, f"Missing metadata key in equity_thresholds: {key}"
+            assert (
+                key in thresholds
+            ), f"Missing metadata key in equity_thresholds: {key}"
 
     def test_percentile_check_pass(self) -> None:
         """All categories ≥ 5% should produce PASS."""
@@ -538,9 +516,7 @@ class TestAssignEquityCategory:
         scores = list(range(0, 100, 1))  # 100 scores spanning all categories
         bg = self._make_scored_data(scores)
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             _, metadata = assign_equity_category(bg)
 
         assert metadata["equity_thresholds"]["percentile_check"] == "PASS"
@@ -551,9 +527,7 @@ class TestAssignEquityCategory:
         scores = [80.0] * 98 + [20.0, 50.0]  # Low and Medium each < 5%
         bg = self._make_scored_data(scores)
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             _, metadata = assign_equity_category(bg)
 
         assert metadata["equity_thresholds"]["percentile_check"] == "WARN"
@@ -563,9 +537,7 @@ class TestAssignEquityCategory:
         scores = list(range(0, 100))
         bg = self._make_scored_data(scores)
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=_default_config()
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=_default_config()):
             _, metadata = assign_equity_category(bg)
 
         stability = metadata["equity_thresholds"]["sensitivity_stability"]
@@ -575,7 +547,7 @@ class TestAssignEquityCategory:
         assert 0.0 <= stability["shift_minus5"] <= 1.0
 
     def test_sensitivity_clamping_at_100(self) -> None:
-        """Sensitivity test must not collapse medium category when high is clamped to 100."""
+        """Sensitivity test must not collapse medium category when high is clamped to 100."""  # noqa: E501
         # Setup scores and thresholds so that high + 5 >= 100
         scores = list(range(0, 101))
         bg = self._make_scored_data(scores)
@@ -584,22 +556,20 @@ class TestAssignEquityCategory:
         clamping_config["equity_thresholds"]["high_access_min"] = 98
         clamping_config["equity_thresholds"]["medium_access_min"] = 97
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=clamping_config
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=clamping_config):
             _, metadata = assign_equity_category(bg)
 
         # In _run_sensitivity_test:
         # high_plus = min(98 + 5, 100) = 100
         # med_plus = min(97 + 5, 100) = 100
         # if high_plus <= med_plus: med_plus = max(97, 100 - 1) = 99
-        # So bins should be [-inf, 99, 100, inf], allowing a Medium Access bucket [99, 100)
-        
+        # So bins should be [-inf, 99, 100, inf], allowing a Medium Access bucket [99, 100)  # noqa: E501
+
         # Stability is checked against baseline: [-inf, 97, 98, inf]
         # Baseline categories for [97, 98, 99, 100]: [M, H, H, H]
         # Shifted categories for [97, 98, 99, 100]: [L, L, M, H]
-        
-        # The fact that it doesn't crash and returns stability is the primary check here.
+
+        # The fact that it doesn't crash and returns stability is the primary check here.  # noqa: E501
         stability = metadata["equity_thresholds"]["sensitivity_stability"]
         assert "shift_plus5" in stability
         assert 0.0 <= stability["shift_plus5"] <= 1.0
@@ -615,9 +585,7 @@ class TestAssignEquityCategory:
         bad_config["equity_thresholds"]["high_access_min"] = 30
         bad_config["equity_thresholds"]["medium_access_min"] = 50
 
-        with patch(
-            "src.pipeline.scoring._load_config", return_value=bad_config
-        ):
+        with patch("src.pipeline.scoring._load_config", return_value=bad_config):
             with pytest.raises(ThresholdConfigError):
                 assign_equity_category(bg)
 
@@ -625,6 +593,7 @@ class TestAssignEquityCategory:
 # ---------------------------------------------------------------------------
 # Tests: validate_total_amenities (task 3.3.7)
 # ---------------------------------------------------------------------------
+
 
 class TestValidateTotalAmenities:
     """Tests for total_amenities consistency check."""
@@ -669,6 +638,7 @@ class TestValidateTotalAmenities:
 # Tests: count_amenities_by_type (task 3.3.3)
 # ---------------------------------------------------------------------------
 
+
 class TestCountAmenitiesByType:
     """Tests for amenity counting after spatial join."""
 
@@ -688,7 +658,12 @@ class TestCountAmenitiesByType:
 
         result = count_amenities_by_type(joined, bg)
 
-        for col in ["grocery_count", "healthcare_count", "transit_count", "other_count"]:
+        for col in [
+            "grocery_count",
+            "healthcare_count",
+            "transit_count",
+            "other_count",
+        ]:
             assert col in result.columns
 
         assert result["total_amenities"].sum() == 4

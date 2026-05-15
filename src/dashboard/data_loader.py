@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 class ValidationError(ValueError):
     """Exception raised for errors in the input data validation."""
+
     pass
 
 

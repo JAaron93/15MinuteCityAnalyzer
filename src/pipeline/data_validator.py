@@ -1,8 +1,9 @@
 import logging
+
 import geopandas as gpd
-from typing import List
 
 logger = logging.getLogger(__name__)
+
 
 class DataValidator:
     """
@@ -30,13 +31,17 @@ class DataValidator:
         # Check for null geometries
         null_geoms = df[df.geometry.isnull()]
         if not null_geoms.empty:
-            logger.warning(f"Found {len(null_geoms)} Census rows with null geometry. Dropping them.")
+            logger.warning(
+                f"Found {len(null_geoms)} Census rows with null geometry. Dropping them."
+            )
             df.dropna(subset=["geometry"], inplace=True)
 
         # Check for invalid population (negative)
         neg_pop = df[df.population < 0]
         if not neg_pop.empty:
-            logger.warning(f"Found {len(neg_pop)} rows with negative population. Setting to 0.")
+            logger.warning(
+                f"Found {len(neg_pop)} rows with negative population. Setting to 0."
+            )
             df.loc[df.population < 0, "population"] = 0
 
         logger.info(f"Census data validated: {len(df)} block groups.")
@@ -51,7 +56,7 @@ class DataValidator:
         """
         if df.empty:
             logger.warning("OSM POI data is empty.")
-            return True # Not necessarily an error if no POIs exist in bbox
+            return True  # Not necessarily an error if no POIs exist in bbox
 
         if "amenity_type" not in df.columns:
             logger.error("OSM data missing 'amenity_type' column.")
@@ -60,7 +65,9 @@ class DataValidator:
         # Check for null geometries
         null_geoms = df[df.geometry.isnull()]
         if not null_geoms.empty:
-            logger.warning(f"Found {len(null_geoms)} OSM rows with null geometry. Dropping them.")
+            logger.warning(
+                f"Found {len(null_geoms)} OSM rows with null geometry. Dropping them."
+            )
             df.dropna(subset=["geometry"], inplace=True)
 
         logger.info(f"OSM POI data validated: {len(df)} features.")
@@ -77,11 +84,13 @@ class DataValidator:
             logger.warning(f"Data has no CRS. Setting to {expected_crs}.")
             df.set_crs(expected_crs, inplace=True)
             return True
-        
+
         if df.crs.to_string() != expected_crs:
-            logger.warning(f"Data has CRS {df.crs}, expected {expected_crs}. Re-projecting.")
+            logger.warning(
+                f"Data has CRS {df.crs}, expected {expected_crs}. Re-projecting."
+            )
             df.to_crs(expected_crs, inplace=True)
-        
+
         return True
 
     @staticmethod
@@ -106,12 +115,14 @@ class DataValidator:
         """
         missing_pop = df["population"].isnull().sum()
         missing_income = df["median_income"].isnull().sum()
-        
+
         if missing_pop > 0 or missing_income > 0:
-            logger.warning(f"Missing demographics: population={missing_pop}, income={missing_income}.")
+            logger.warning(
+                f"Missing demographics: population={missing_pop}, income={missing_income}."
+            )
             # Fill missing population with 0
             df["population"] = df["population"].fillna(0)
             # Median income is trickier, maybe leave as null or fill with median of others
             # For now, let's keep as is but log.
-            
+
         return True

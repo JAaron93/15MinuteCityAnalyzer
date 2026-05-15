@@ -8,10 +8,10 @@ def create_mock_data():
     # Bbox: [-118.3, 34.0, -118.2, 34.1]
     
     geometries = [
-        Polygon([(-118.25, 34.05), (-118.24, 34.05), (-118.24, 34.06), (-118.25, 34.06)]),
-        Polygon([(-118.24, 34.05), (-118.23, 34.05), (-118.23, 34.06), (-118.24, 34.06)]),
-        Polygon([(-118.25, 34.06), (-118.24, 34.06), (-118.24, 34.07), (-118.25, 34.07)]),
-        Polygon([(-118.24, 34.06), (-118.23, 34.06), (-118.23, 34.07), (-118.24, 34.07)]),
+        Polygon([(-118.25, 34.05), (-118.24, 34.05), (-118.24, 34.06), (-118.25, 34.06)]),  # noqa: E501
+        Polygon([(-118.24, 34.05), (-118.23, 34.05), (-118.23, 34.06), (-118.24, 34.06)]),  # noqa: E501
+        Polygon([(-118.25, 34.06), (-118.24, 34.06), (-118.24, 34.07), (-118.25, 34.07)]),  # noqa: E501
+        Polygon([(-118.24, 34.06), (-118.23, 34.06), (-118.23, 34.07), (-118.24, 34.07)]),  # noqa: E501
     ]
     
     data = {
@@ -31,7 +31,7 @@ def create_mock_data():
             f"Mismatch between geometries ({len(geometries)}) and data rows ({len(df)})"
         )
     
-    # Calculate raw_score: 0.35*min(g,5) + 0.30*min(h,3) + 0.25*min(t,10) + 0.10*min(o,5)
+    # Calculate raw_score: 0.35*min(g,5) + 0.30*min(h,3) + 0.25*min(t,10) + 0.10*min(o,5)  # noqa: E501
     df['raw_score'] = (
         0.35 * df['grocery_count'].clip(upper=5) +
         0.30 * df['healthcare_count'].clip(upper=3) +
@@ -45,10 +45,10 @@ def create_mock_data():
     if city_max == city_min:
         df['accessibility_score'] = 50.0
     else:
-        df['accessibility_score'] = 100 * (df['raw_score'] - city_min) / (city_max - city_min)
+        df['accessibility_score'] = 100 * (df['raw_score'] - city_min) / (city_max - city_min)  # noqa: E501
         
     # Total amenities
-    df['total_amenities'] = df['grocery_count'] + df['healthcare_count'] + df['transit_count'] + df['other_count']
+    df['total_amenities'] = df['grocery_count'] + df['healthcare_count'] + df['transit_count'] + df['other_count']  # noqa: E501
     
     # Equity category (default thresholds: 70, 40)
     df['equity_category'] = pd.cut(

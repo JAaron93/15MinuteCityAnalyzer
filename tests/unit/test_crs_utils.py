@@ -7,9 +7,9 @@ Tests cover:
 - Error handling for invalid inputs
 """
 
-import pytest
 import geopandas as gpd
-from shapely.geometry import Point, Polygon
+import pytest
+from shapely.geometry import Point
 
 from src.pipeline.crs_utils import (
     CRSTransformationError,
@@ -141,16 +141,12 @@ class TestValidateWgs84:
 
     def test_valid_wgs84(self) -> None:
         """GeoDataFrame in WGS84 should pass validation."""
-        gdf = gpd.GeoDataFrame(
-            geometry=[Point(0, 0)], crs="EPSG:4326"
-        )
+        gdf = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs="EPSG:4326")
         assert validate_wgs84(gdf) is None
 
     def test_non_wgs84_raises(self) -> None:
         """GeoDataFrame in a projected CRS should raise."""
-        gdf = gpd.GeoDataFrame(
-            geometry=[Point(500000, 3750000)], crs="EPSG:32611"
-        )
+        gdf = gpd.GeoDataFrame(geometry=[Point(500000, 3750000)], crs="EPSG:32611")
         with pytest.raises(CRSTransformationError, match="EPSG:4326"):
             validate_wgs84(gdf)
 

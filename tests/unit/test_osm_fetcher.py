@@ -1,8 +1,9 @@
-import pytest
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import MagicMock, patch
+
 import geopandas as gpd
-import pandas as pd
-from shapely.geometry import Point, Polygon
+import pytest
+from shapely.geometry import Point
+
 from src.pipeline.osm_fetcher import OSMFetcher
 
 
@@ -15,8 +16,10 @@ def test_osm_fetcher_init():
 @pytest.fixture
 def mock_insufficient_response_error():
     """Fixture to provide a custom InsufficientResponseError for OSMnx mocks."""
+
     class InsufficientResponseError(Exception):
         pass
+
     return InsufficientResponseError
 
 
@@ -66,7 +69,9 @@ def test_fetch_amenities_batch(mock_validator, mock_ox):
 
 @patch("src.pipeline.osm_fetcher.ox")
 @patch("src.pipeline.osm_fetcher.DataValidator")
-def test_fetch_amenities_batch_empty(mock_validator, mock_ox, mock_insufficient_response_error):
+def test_fetch_amenities_batch_empty(
+    mock_validator, mock_ox, mock_insufficient_response_error
+):
     """Test _fetch_amenities_batch when OSMnx returns no results."""
     fetcher = OSMFetcher()
 
@@ -95,7 +100,7 @@ def test_fetch_amenities_with_validation(mock_validator, mock_ox):
     # Patch the decorated method to bypass retry
     with patch.object(fetcher, "_fetch_amenities_batch", return_value=mock_gdf):
         bbox = (45.5, 45.0, -122.0, -122.5)
-        result = fetcher.fetch_amenities(bbox)
+        fetcher.fetch_amenities(bbox)
         mock_validator.validate_osm_data.assert_called_once()
 
 
@@ -131,7 +136,7 @@ def test_fetch_with_tiling_amenities(mock_validator, mock_ox):
     # Patch the decorated batch method to bypass retry
     with patch.object(fetcher, "_fetch_amenities_batch", return_value=mock_gdf):
         bbox = (45.5, 45.0, -122.0, -122.5)
-        result = fetcher.fetch_amenities(bbox)
+        fetcher.fetch_amenities(bbox)
         # Should have called batch method multiple times (tiles > 1)
         assert fetcher._fetch_amenities_batch.call_count >= 2
 
@@ -147,12 +152,16 @@ def test_fetch_with_tiling_failure_threshold(mock_validator, mock_ox):
 
     fetcher.bbox_limits["enable_tiling"] = True
     fetcher.bbox_limits["max_edge_degrees"] = 0.5
-    fetcher.config.setdefault("bbox_limits", {}).setdefault("tiling", {})["failure_threshold"] = 0.0
+    fetcher.config.setdefault("bbox_limits", {}).setdefault("tiling", {})[
+        "failure_threshold"
+    ] = 0.0
 
     mock_validator.validate_osm_data.return_value = True
 
     # Patch the decorated batch method to raise
-    with patch.object(fetcher, "_fetch_amenities_batch", side_effect=Exception("Network error")):
+    with patch.object(
+        fetcher, "_fetch_amenities_batch", side_effect=Exception("Network error")
+    ):
         bbox = (45.5, 45.0, -122.0, -122.5)
         with pytest.raises(Exception, match="Tiling failure"):
             fetcher.fetch_amenities(bbox)
@@ -167,6 +176,7 @@ def test_fetch_amenities_batch_mixed_results(mock_ox, mock_insufficient_response
     mock_ox._errors.InsufficientResponseError = mock_insufficient_response_error
 
     call_count = 0
+
     def side_effect(*args, **kwargs):
         nonlocal call_count
         call_count += 1

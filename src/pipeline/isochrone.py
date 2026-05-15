@@ -15,7 +15,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import geopandas as gpd
 import networkx as nx
-import numpy as np
 import osmnx as ox
 import yaml
 from shapely.geometry import MultiPoint, Point, Polygon
@@ -44,7 +43,8 @@ def _load_config(config_path: str = "pipeline_config.yaml") -> Dict[str, Any]:
         Parsed configuration dictionary.
     """
     with open(config_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        from typing import cast
+        return cast(Dict[str, Any], yaml.safe_load(f))
 
 
 def _get_graph_crs(graph: nx.MultiDiGraph) -> Any:
@@ -247,17 +247,13 @@ def calculate_all_isochrones(
                 for future in as_completed(futures):
                     completed += 1
                     if completed % 100 == 0:
-                        logger.info(
-                            f"Isochrone progress: {completed}/{len(tasks)}"
-                        )
+                        logger.info(f"Isochrone progress: {completed}/{len(tasks)}")
                     try:
                         result = future.result()
                         if result is not None:
                             results.append(result)
                     except Exception as e:
-                        logger.warning(
-                            f"Individual isochrone task failed: {e}"
-                        )
+                        logger.warning(f"Individual isochrone task failed: {e}")
 
         except Exception as e:
             logger.warning(
@@ -322,9 +318,7 @@ def _calculate_sequential(
 
         amenity_type = row.get("amenity_type", "unknown")
 
-        polygon = calculate_isochrone(
-            graph, point, walk_time_minutes, walk_speed_kmh
-        )
+        polygon = calculate_isochrone(graph, point, walk_time_minutes, walk_speed_kmh)
 
         if polygon is not None:
             results.append(
