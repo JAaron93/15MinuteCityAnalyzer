@@ -6,7 +6,7 @@ The 15-Minute City & Transit Equity Analyzer dashboard is designed to be deploye
 
 To run the application locally for development or testing:
 
-1.  **Install Dependencies**: Ensure you are using Python 3.9+ and install all dependencies via pip:
+1.  **Install Dependencies**: Ensure you are using Python 3.10+ and install all dependencies via pip:
     ```bash
     pip install -r requirements.txt
     ```

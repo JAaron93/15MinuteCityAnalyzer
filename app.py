@@ -20,20 +20,29 @@ def get_city_median_income_fallback() -> float:
     """
     Get city median income fallback value from environment variable.
 
-    Reads CITY_MEDIAN_INCOME_FALLBACK or CITY_MEDIAN_INCOME_DEFAULT env var.
+    Reads CITY_MEDIAN_INCOME_DEFAULT env var.
     Defaults to 100000 if unset or invalid.
 
     Expected format: numeric value (e.g., "100000" or "75000.50")
     """
-    fallback_env = os.environ.get("CITY_MEDIAN_INCOME_FALLBACK") or os.environ.get(
-        "CITY_MEDIAN_INCOME_DEFAULT"
-    )
+    # Prefer CITY_MEDIAN_INCOME_DEFAULT as the standard environment variable
+    fallback_env = os.environ.get("CITY_MEDIAN_INCOME_DEFAULT")
+
+    # Check legacy name for backward compatibility
+    if fallback_env is None:
+        fallback_env = os.environ.get("CITY_MEDIAN_INCOME_FALLBACK")
+        if fallback_env is not None:
+            logger.warning(
+                "CITY_MEDIAN_INCOME_FALLBACK is deprecated and will be removed in a future version. "
+                "Please use CITY_MEDIAN_INCOME_DEFAULT instead."
+            )
+
     if fallback_env is not None:
         try:
             return float(fallback_env)
         except ValueError:
             logger.warning(
-                f"Invalid CITY_MEDIAN_INCOME_FALLBACK value: '{fallback_env}'. Using default: 100000"  # noqa: E501
+                f"Invalid CITY_MEDIAN_INCOME_DEFAULT value: '{fallback_env}'. Using default: 100000"
             )
     # Default value represents a reasonable median income for many US cities
     return 100000.0

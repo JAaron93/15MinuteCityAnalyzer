@@ -104,7 +104,7 @@ def retry_with_policy(
                     actual_delay = delay + random.uniform(-jitter, jitter)
 
                     if (time.time() - start_time) + actual_delay >= max_total_duration:
-                        raise last_exception from None
+                        raise last_exception
 
                     logger.warning(
                         f"Retry attempt {attempt + 1} after {actual_delay:.2f}s "

@@ -1,11 +1,11 @@
 [tool.black]
 line-length = 88
-target-version = ['py39']
+target-version = ['py310']
 include = '\.pyi?$'
 
 [tool.ruff]
 line-length = 88
-target-version = "py39"
+target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "B", "C4", "SIM", "TID"]
 ignore = ["E501", "N802", "N803", "N806", "SIM117", "N807", "SIM113", "B007", "B904"]

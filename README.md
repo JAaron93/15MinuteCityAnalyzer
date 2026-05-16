@@ -2,7 +2,7 @@
 
 [![Coverage](https://codecov.io/gh/JAaron93/15MinuteCityAnalyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/JAaron93/15MinuteCityAnalyzer)
 [![Tests](https://github.com/JAaron93/15MinuteCityAnalyzer/workflows/tests/badge.svg)](https://github.com/JAaron93/15MinuteCityAnalyzer/actions)
-![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
 A geospatial analysis tool that evaluates urban accessibility and transit equity. This project analyzes whether residents can access essential amenities (grocery stores, healthcare, transit) within a 15-minute walk and identifies equity gaps by correlating accessibility with demographic data.
 
@@ -17,7 +17,7 @@ A geospatial analysis tool that evaluates urban accessibility and transit equity
 
 ### Prerequisites
 
-- Python 3.9 or higher
+- Python 3.10 or higher
 - `libspatialindex` (required for `rtree`)
 
 ```bash
