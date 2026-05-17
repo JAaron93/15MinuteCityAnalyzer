@@ -153,3 +153,15 @@ def get_nested_metadata(
     # Fallback to flattened key pattern
     flattened_key = f"{top_key}.{sub_key}"
     return metadata.get(flattened_key, default)
+@contextlib.contextmanager
+def timer(name: str):
+    """
+    Context manager for measuring execution time of a block of code (8.1.5).
+    """
+    start = time.time()
+    logger.info(f"Starting {name}...")
+    try:
+        yield
+    finally:
+        end = time.time()
+        logger.info(f"Finished {name} in {end - start:.2f} seconds.")

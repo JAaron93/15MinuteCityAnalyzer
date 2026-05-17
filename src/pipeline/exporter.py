@@ -31,6 +31,26 @@ def export_to_geoparquet(
     if df.crs and df.crs.to_string() != "EPSG:4326":
         df = df.to_crs("EPSG:4326")
 
+    # Prune columns to required set (8.3.3)
+    # Only prune if columns exist (to avoid breaking unit tests with mock data)
+    required_cols = [
+        "geoid",
+        "geometry",
+        "population",
+        "median_income",
+        "raw_score",
+        "accessibility_score",
+        "grocery_count",
+        "healthcare_count",
+        "transit_count",
+        "other_count",
+        "total_amenities",
+        "equity_category",
+    ]
+    existing_cols = [col for col in required_cols if col in df.columns]
+    if existing_cols:
+        df = df[existing_cols]
+
     # Save to geoparquet
     logger.info(f"Exporting {len(df)} records to {output_path}")
 

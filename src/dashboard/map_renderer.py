@@ -57,9 +57,15 @@ def create_choropleth_map(
             income = x["properties"].get("median_income", vmin)
             return str(colormap(income))
 
+    # Simplify geometries for web display (8.2.2, 8.2.3)
+    # Even if simplified in export, a second pass here with a small tolerance
+    # ensures the frontend isn't bogged down by unnecessary vertices.
+    plot_data = data.copy()
+    plot_data.geometry = plot_data.geometry.simplify(0.0001, preserve_topology=True)
+
     # Add GeoJson with tooltips
     geojson_layer = folium.GeoJson(
-        data,
+        plot_data,
         style_function=lambda x: {
             "fillColor": fill_color_fn(x),
             "color": "black",

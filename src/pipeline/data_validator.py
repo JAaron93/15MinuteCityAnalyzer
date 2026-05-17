@@ -126,3 +126,17 @@ class DataValidator:
             # For now, let's keep as is but log.
 
         return True
+
+    @staticmethod
+    def simplify_geometries(df: gpd.GeoDataFrame, tolerance: float = 0.0001) -> gpd.GeoDataFrame:
+        """
+        Simplifies geometries to reduce vertex count and speed up spatial operations (8.1.3).
+
+        Note: Modifies the input DataFrame in-place.
+        """
+        if df.empty:
+            return df
+
+        logger.info(f"Simplifying geometries with tolerance {tolerance}")
+        df.geometry = df.geometry.simplify(tolerance, preserve_topology=True)
+        return df

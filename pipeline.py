@@ -59,6 +59,7 @@ def __():
         calculate_accessibility_score,
         spatial_join_amenities,
     )
+    from src.pipeline.utils import timer
 
     return (
         CensusFetcher,
@@ -77,6 +78,7 @@ def __():
         spatial_join_amenities,
         transform_to_utm,
         transform_to_wgs84,
+        timer,
     )
 
 
@@ -90,27 +92,27 @@ def __(logging):
 
 
 @app.cell
-def __(CensusFetcher, bbox, logger, state):
-    logger.info("Fetching Census demographics...")
-    census_fetcher = CensusFetcher()
-    block_groups = census_fetcher.fetch_data(state, bbox)
+def __(CensusFetcher, bbox, logger, state, timer):
+    with timer("Fetching Census demographics"):
+        census_fetcher = CensusFetcher()
+        block_groups = census_fetcher.fetch_data(state, bbox)
     logger.info(f"Fetched {len(block_groups)} block groups.")
     return block_groups, census_fetcher
 
 
 @app.cell
-def __(OSMFetcher, bbox, logger):
-    logger.info("Fetching OSM amenities...")
-    osm_fetcher = OSMFetcher()
-    amenities = osm_fetcher.fetch_amenities(bbox)
+def __(OSMFetcher, bbox, logger, timer):
+    with timer("Fetching OSM amenities"):
+        osm_fetcher = OSMFetcher()
+        amenities = osm_fetcher.fetch_amenities(bbox)
     logger.info(f"Fetched {len(amenities)} amenities.")
     return amenities, osm_fetcher
 
 
 @app.cell
-def __(bbox, logger, osm_fetcher):
-    logger.info("Fetching street network...")
-    network = osm_fetcher.fetch_street_network(bbox)
+def __(bbox, logger, osm_fetcher, timer):
+    with timer("Fetching street network"):
+        network = osm_fetcher.fetch_street_network(bbox)
     logger.info(
         f"Fetched network with {len(network.nodes)} nodes and {len(network.edges)} edges."  # noqa: E501
     )
@@ -118,32 +120,43 @@ def __(bbox, logger, osm_fetcher):
 
 
 @app.cell
-def __(amenities, bbox, block_groups, determine_utm_zone, logger, transform_to_utm):
-    logger.info("Transforming CRS to local UTM...")
-    utm_crs = determine_utm_zone(bbox)
+def __(
+    DataValidator,
+    amenities,
+    bbox,
+    block_groups,
+    determine_utm_zone,
+    logger,
+    timer,
+    transform_to_utm,
+):
+    with timer("CRS Transformation and Simplification"):
+        utm_crs = determine_utm_zone(bbox)
+        bg_utm = transform_to_utm(block_groups, utm_crs)
+        amenities_utm = transform_to_utm(amenities, utm_crs)
 
-    bg_utm = transform_to_utm(block_groups, utm_crs)
-    amenities_utm = transform_to_utm(amenities, utm_crs)
-
-    logger.info(f"Projected to {utm_crs}.")
+        # Simplify block group geometries to speed up spatial join (8.1.3)
+        DataValidator.simplify_geometries(bg_utm, tolerance=1.0)  # 1m tolerance in UTM
     return amenities_utm, bg_utm, utm_crs
 
 
 @app.cell
-def __(amenities, calculate_all_isochrones, logger, network):
-    logger.info("Calculating 15-minute isochrones...")
-    # isochrones generation uses the WGS84 graph and WGS84 amenities directly
-    isochrones = calculate_all_isochrones(
-        graph=network, amenities=amenities, walk_time_minutes=15, max_workers=4
-    )
+def __(amenities, calculate_all_isochrones, logger, network, timer):
+    with timer("Calculating 15-minute isochrones"):
+        # isochrones generation uses the WGS84 graph and WGS84 amenities directly
+        isochrones = calculate_all_isochrones(
+            graph=network, amenities=amenities, walk_time_minutes=15, max_workers=4
+        )
     logger.info(f"Generated {len(isochrones)} isochrones.")
     return (isochrones,)
 
 
 @app.cell
-def __(isochrones, logger, transform_to_utm, utm_crs):
-    logger.info("Transforming isochrones to UTM...")
-    isochrones_utm = transform_to_utm(isochrones, utm_crs)
+def __(DataValidator, isochrones, logger, timer, transform_to_utm, utm_crs):
+    with timer("Isochrone Projection and Simplification"):
+        isochrones_utm = transform_to_utm(isochrones, utm_crs)
+        # Simplify isochrone geometries (8.1.3)
+        DataValidator.simplify_geometries(isochrones_utm, tolerance=1.0)
     return (isochrones_utm,)
 
 
@@ -156,12 +169,12 @@ def __(
     isochrones_utm,
     logger,
     spatial_join_amenities,
+    timer,
 ):
-    logger.info("Performing spatial join and scoring...")
-    joined_data = spatial_join_amenities(bg_utm, isochrones_utm, amenities_utm)
-    scored_data = calculate_accessibility_score(joined_data)
-    final_data, thresholds_metadata = assign_equity_category(scored_data)
-    logger.info("Scoring complete.")
+    with timer("Spatial Join and Scoring"):
+        joined_data = spatial_join_amenities(bg_utm, isochrones_utm, amenities_utm)
+        scored_data = calculate_accessibility_score(joined_data)
+        final_data, thresholds_metadata = assign_equity_category(scored_data)
     return final_data, joined_data, scored_data, thresholds_metadata
 
 

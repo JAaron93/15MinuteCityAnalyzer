@@ -70,7 +70,19 @@ streamlit run app.py
 - **Demographics**: [U.S. Census Bureau ACS 5-Year Estimates](https://www.census.gov/data/developers/data-sets/acs-5year.html)
 - **Amenities & Infrastructure**: [OpenStreetMap](https://www.openstreetmap.org/) via OSMnx
 
-## Deployment
+## Performance Optimizations
+ 
+ To ensure smooth performance on medium-to-large cities and compatibility with Streamlit Cloud's resource limits, the following optimizations have been implemented:
+ 
+ - **Parallel Processing**: Isochrone calculations are parallelized using `ProcessPoolExecutor` with a shared-memory graph to minimize overhead.
+ - **Spatial Indexing**: All spatial joins and lookups use R-tree indexing for logarithmic-time geometric operations.
+ - **Geometry Simplification**: 
+   - **Pipeline**: Geometries are simplified before spatial joins to reduce vertex count while preserving topology.
+   - **Export**: Final outputs use snappy compression and automated simplification to stay under the 50MB Streamlit Cloud limit.
+   - **Dashboard**: Rendering-time simplification ensures smooth map interactions.
+ - **Data Caching**: Streamlit's `@st.cache_data` is used for efficient data loading, and OSMnx's local disk cache minimizes redundant API calls.
+ 
+ ## Deployment
 
 The dashboard is designed to be deployable to [Streamlit Cloud](https://streamlit.io/cloud). Ensure the processed GeoParquet file is committed to the repository (if under 50MB) for seamless deployment.
 

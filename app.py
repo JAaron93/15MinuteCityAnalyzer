@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_folium import folium_static
 
+import time
 from src.dashboard.data_loader import load_geoparquet
 from src.dashboard.filters import apply_all_filters
 from src.dashboard.map_renderer import create_choropleth_map
@@ -20,18 +21,20 @@ def get_city_median_income_fallback() -> float:
     """
     Get city median income fallback value from environment variable.
 
-    Reads CITY_MEDIAN_INCOME_DEFAULT env var.
-    Defaults to 100000 if unset or invalid.
+    Reads CITY_MEDIAN_INCOME_DEFAULT env var with fallback to deprecated
+    CITY_MEDIAN_INCOME_FALLBACK for backward compatibility.
 
     Expected format: numeric value (e.g., "100000" or "75000.50")
     """
     # Prefer CITY_MEDIAN_INCOME_DEFAULT as the standard environment variable
     fallback_env = os.environ.get("CITY_MEDIAN_INCOME_DEFAULT")
+    env_var_name = "CITY_MEDIAN_INCOME_DEFAULT"
 
     # Check legacy name for backward compatibility
     if fallback_env is None:
         fallback_env = os.environ.get("CITY_MEDIAN_INCOME_FALLBACK")
         if fallback_env is not None:
+            env_var_name = "CITY_MEDIAN_INCOME_FALLBACK"
             logger.warning(
                 "CITY_MEDIAN_INCOME_FALLBACK is deprecated and will be removed in a future version. "
                 "Please use CITY_MEDIAN_INCOME_DEFAULT instead."
@@ -42,7 +45,7 @@ def get_city_median_income_fallback() -> float:
             return float(fallback_env)
         except ValueError:
             logger.warning(
-                f"Invalid CITY_MEDIAN_INCOME_DEFAULT value: '{fallback_env}'. Using default: 100000"
+                f"Invalid {env_var_name} value: '{fallback_env}'. Using default: 100000"
             )
     # Default value represents a reasonable median income for many US cities
     return 100000.0
@@ -102,7 +105,10 @@ st.markdown("""
 DATA_PATH = "data/processed/processed_equity_data.parquet"
 
 try:
+    load_start = time.time()
     gdf = load_geoparquet(DATA_PATH)
+    load_duration = time.time() - load_start
+    logger.info(f"Data loaded in {load_duration:.2f}s")
 
     # Sidebar Controls
     st.sidebar.header("🗺️ Map Controls")
@@ -177,8 +183,11 @@ try:
     # Main Map View
     st.subheader(f"Interactive Map: {map_layer}")
     if not filtered_gdf.empty:
+        render_start = time.time()
         m = create_choropleth_map(filtered_gdf, metric=metric_col)
         folium_static(m, width=1200, height=600)
+        render_duration = time.time() - render_start
+        logger.info(f"Map rendered in {render_duration:.2f}s")
     else:
         st.warning("No data matches the selected filters. Please adjust your criteria.")
 
