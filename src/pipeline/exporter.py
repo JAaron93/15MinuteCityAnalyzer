@@ -47,8 +47,18 @@ def export_to_geoparquet(
         "total_amenities",
         "equity_category",
     ]
+    missing = [c for c in required_cols if c not in df.columns]
     existing_cols = [col for col in required_cols if col in df.columns]
-    if existing_cols:
+
+    if missing:
+        logger.warning(
+            f"Missing required columns: {missing}. "
+            f"The following existing columns will be pruned: {existing_cols}"
+        )
+
+    if not existing_cols:
+        logger.warning("No required columns found in GeoDataFrame. Pruning is skipped.")
+    else:
         df = df[existing_cols]
 
     # Save to geoparquet

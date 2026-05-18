@@ -105,9 +105,9 @@ st.markdown("""
 DATA_PATH = "data/processed/processed_equity_data.parquet"
 
 try:
-    load_start = time.time()
+    load_start = time.perf_counter()
     gdf = load_geoparquet(DATA_PATH)
-    load_duration = time.time() - load_start
+    load_duration = time.perf_counter() - load_start
     logger.info(f"Data loaded in {load_duration:.2f}s")
 
     # Sidebar Controls
@@ -183,10 +183,10 @@ try:
     # Main Map View
     st.subheader(f"Interactive Map: {map_layer}")
     if not filtered_gdf.empty:
-        render_start = time.time()
+        render_start = time.perf_counter()
         m = create_choropleth_map(filtered_gdf, metric=metric_col)
         folium_static(m, width=1200, height=600)
-        render_duration = time.time() - render_start
+        render_duration = time.perf_counter() - render_start
         logger.info(f"Map rendered in {render_duration:.2f}s")
     else:
         st.warning("No data matches the selected filters. Please adjust your criteria.")

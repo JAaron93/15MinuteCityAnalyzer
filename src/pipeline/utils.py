@@ -158,10 +158,10 @@ def timer(name: str):
     """
     Context manager for measuring execution time of a block of code (8.1.5).
     """
-    start = time.time()
+    start = time.perf_counter()
     logger.info(f"Starting {name}...")
     try:
         yield
     finally:
-        end = time.time()
+        end = time.perf_counter()
         logger.info(f"Finished {name} in {end - start:.2f} seconds.")

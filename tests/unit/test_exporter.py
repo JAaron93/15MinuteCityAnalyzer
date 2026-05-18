@@ -66,3 +66,41 @@ def test_export_to_geoparquet_file_size_error(tmp_path, mocker):
 
     with pytest.raises(FileSizeLimitError):
         export_to_geoparquet(gdf, str(output_path))
+
+
+def test_export_to_geoparquet_missing_cols(tmp_path, caplog):
+    output_path = tmp_path / "missing.parquet"
+    # Create GeoDataFrame with only some required columns
+    df = pd.DataFrame({"geoid": ["1"], "geometry": [Point(0, 0)], "extra_col": ["val"]})
+    gdf = gpd.GeoDataFrame(df, crs="EPSG:4326")
+
+    export_to_geoparquet(gdf, str(output_path))
+
+    # Verify log contains missing columns warning
+    assert "Missing required columns:" in caplog.text
+    # Verify it mentions specific missing column like 'population'
+    assert "population" in caplog.text
+    # Verify it mentions existing columns to be pruned
+    assert "geoid" in caplog.text
+    assert "geometry" in caplog.text
+    # Verify 'extra_col' is pruned from the exported file
+    loaded_gdf = gpd.read_parquet(output_path)
+    assert "extra_col" not in loaded_gdf.columns
+    assert "geoid" in loaded_gdf.columns
+
+
+def test_export_to_geoparquet_skipped_pruning(tmp_path, caplog):
+    output_path = tmp_path / "no_cols.parquet"
+    # Create GeoDataFrame with no required columns, but with an active geometry named 'geom'
+    df = pd.DataFrame({"some_other_col": ["val"], "geom": [Point(0, 0)]})
+    gdf = gpd.GeoDataFrame(df, geometry="geom", crs="EPSG:4326")
+
+    export_to_geoparquet(gdf, str(output_path))
+
+    # Verify log contains pruning skipped warning
+    assert "No required columns found in GeoDataFrame. Pruning is skipped." in caplog.text
+    # Verify the exported file still has 'some_other_col' because pruning was skipped
+    loaded_gdf = gpd.read_parquet(output_path)
+    assert "some_other_col" in loaded_gdf.columns
+
+
